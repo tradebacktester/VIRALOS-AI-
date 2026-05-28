@@ -10,6 +10,11 @@ import exportsRouter from "./exports";
 import analyticsRouter from "./analytics";
 import trendsRouter from "./trends";
 import agentsRouter from "./agents";
+import publisherRouter from "./publisher";
+import abTestsRouter from "./ab-tests";
+import calendarRouter from "./calendar";
+import insightsRouter from "./insights";
+import monetizationRouter from "./monetization";
 
 const router: IRouter = Router();
 
@@ -24,5 +29,10 @@ router.use("/exports", exportsRouter);
 router.use("/analytics", analyticsRouter);
 router.use("/trends", trendsRouter);
 router.use("/agents", agentsRouter);
+router.use("/publisher", publisherRouter);
+router.use("/ab-tests", abTestsRouter);
+router.use("/calendar", calendarRouter);
+router.use("/insights", insightsRouter);
+router.use("/monetization", monetizationRouter);
 
 export default router;

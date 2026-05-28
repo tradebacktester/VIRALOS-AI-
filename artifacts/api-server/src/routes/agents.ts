@@ -3,6 +3,7 @@ import { orchestrateAgents, type OrchestratorMode } from "../agents/orchestrator
 import { runTrendAgent } from "../agents/trend-agent.js";
 import { runHookAgent } from "../agents/hook-agent.js";
 import { runContentStrategyAgent } from "../agents/content-strategy-agent.js";
+import { runJarvis, type JarvisMessage } from "../agents/jarvis-agent.js";
 import { db } from "@workspace/db";
 import { agentRunsTable, agentMemoriesTable, viralityScoresTable, trendReportsTable } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
@@ -25,6 +26,68 @@ router.post("/run", async (req, res) => {
 
   const result = await orchestrateAgents({ projectId, prompt, platform, niche }, mode);
   res.json(result);
+});
+
+router.post("/run/stream", async (req, res) => {
+  const { projectId, prompt, platform, niche, mode = "full_pipeline" } = req.body as {
+    projectId?: number;
+    prompt?: string;
+    platform?: string;
+    niche?: string;
+    mode?: OrchestratorMode;
+  };
+
+  if (!prompt && !projectId) {
+    res.status(400).json({ error: "prompt or projectId required" });
+    return;
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+
+  const send = (event: string, data: unknown) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  send("status", { message: "Initializing agent pipeline...", agent: "JARVIS", timestamp: new Date().toISOString() });
+
+  const agentSteps = [
+    { agent: "Trend Agent", message: "Scanning platform trends and viral signals..." },
+    { agent: "Hook Agent", message: "Engineering 10 hook variations for maximum retention..." },
+    { agent: "Emotion Agent", message: "Mapping emotional arc and dopamine spike points..." },
+    { agent: "Visual Director", message: "Composing cinematic storyboard and color strategy..." },
+    { agent: "Retention Agent", message: "Analyzing pacing, detecting dead zones, inserting pattern interrupts..." },
+    { agent: "Caption Agent", message: "Generating multi-style caption sets..." },
+    { agent: "Virality Engine", message: "Computing viral probability across 6 dimensions..." },
+    { agent: "AI Memory", message: "Storing high-performance patterns to memory bank..." },
+  ];
+
+  const interval = setInterval(() => {
+    const step = agentSteps.shift();
+    if (step) {
+      send("agent_activity", { ...step, timestamp: new Date().toISOString() });
+    }
+  }, 800);
+
+  try {
+    const result = await orchestrateAgents({ projectId, prompt, platform, niche }, mode);
+
+    clearInterval(interval);
+
+    for (const log of result.allLogs) {
+      send("agent_activity", log);
+    }
+
+    send("result", result);
+    send("done", { status: result.status, runId: result.runId });
+  } catch (err) {
+    clearInterval(interval);
+    send("error", { message: err instanceof Error ? err.message : "Unknown error" });
+  } finally {
+    res.end();
+  }
 });
 
 router.post("/hooks", async (req, res) => {
@@ -108,6 +171,13 @@ router.get("/memory/:agentType", async (req, res) => {
   res.json(rows);
 });
 
+router.get("/memory", async (_req, res) => {
+  const rows = await db.select().from(agentMemoriesTable)
+    .orderBy(desc(agentMemoriesTable.score), desc(agentMemoriesTable.updatedAt))
+    .limit(100);
+  res.json(rows);
+});
+
 router.delete("/memory/:agentType/:key", async (req, res) => {
   await db.delete(agentMemoriesTable)
     .where(and(
@@ -115,6 +185,56 @@ router.delete("/memory/:agentType/:key", async (req, res) => {
       eq(agentMemoriesTable.memoryKey, req.params.key)
     ));
   res.json({ success: true });
+});
+
+router.post("/jarvis", async (req, res) => {
+  const { messages, context } = req.body as {
+    messages: JarvisMessage[];
+    context?: { niche?: string; platform?: string; projectId?: number };
+  };
+
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    res.status(400).json({ error: "messages array required" });
+    return;
+  }
+
+  const result = await runJarvis(messages, context);
+  res.json(result);
+});
+
+router.post("/jarvis/stream", async (req, res) => {
+  const { messages, context } = req.body as {
+    messages: JarvisMessage[];
+    context?: { niche?: string; platform?: string };
+  };
+
+  if (!messages || !Array.isArray(messages)) {
+    res.status(400).json({ error: "messages required" });
+    return;
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+
+  const send = (event: string, data: unknown) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  send("status", { message: "JARVIS online. Processing your command...", timestamp: new Date().toISOString() });
+
+  try {
+    const result = await runJarvis(messages, context);
+    if (result.data) {
+      send("reply", result.data);
+    }
+    send("done", { success: true });
+  } catch (err) {
+    send("error", { message: err instanceof Error ? err.message : "Unknown error" });
+  } finally {
+    res.end();
+  }
 });
 
 export default router;

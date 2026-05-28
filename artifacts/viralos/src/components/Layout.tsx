@@ -11,16 +11,20 @@ import {
   Zap,
   Bot,
   Brain,
+  Cpu,
+  Database,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { path: "/command", label: "Command Center", icon: Cpu, badge: "JARVIS" },
   { path: "/create", label: "Create Video", icon: Video },
   { path: "/agents", label: "AI Agents", icon: Bot, badge: "AI" },
-  { path: "/projects", label: "Projects", icon: FolderOpen },
-  { path: "/analytics", label: "Analytics", icon: BarChart3 },
-  { path: "/trends", label: "Trend Radar", icon: TrendingUp },
   { path: "/strategy", label: "Strategy", icon: Brain },
+  { path: "/trends", label: "Trend Radar", icon: TrendingUp },
+  { path: "/analytics", label: "Analytics", icon: BarChart3 },
+  { path: "/memory", label: "Memory Vault", icon: Database },
+  { path: "/projects", label: "Projects", icon: FolderOpen },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -34,8 +38,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {/* Logo */}
         <div className="h-16 flex items-center px-5 border-b border-sidebar-border">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center glow-blue">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center glow-blue relative">
               <Zap className="w-4 h-4 text-white" />
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             </div>
             <div>
               <p className="text-sm font-bold text-foreground tracking-wide">VIRALOS</p>
@@ -64,7 +69,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <Icon className={`w-4 h-4 shrink-0 ${active ? "text-primary" : ""}`} />
                   {item.label}
                   {item.badge && (
-                    <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-semibold tracking-wide">
+                    <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded font-semibold tracking-wide ${
+                      item.badge === "JARVIS"
+                        ? "bg-emerald-400/15 text-emerald-400"
+                        : "bg-primary/20 text-primary"
+                    }`}>
                       {item.badge}
                     </span>
                   )}
@@ -88,7 +97,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           />
           <div className="min-w-0">
             <p className="text-xs font-medium text-foreground truncate">My Workspace</p>
-            <p className="text-[10px] text-muted-foreground">Pro Plan</p>
+            <p className="text-[10px] text-emerald-400 flex items-center gap-1">● All agents online</p>
           </div>
         </div>
       </aside>

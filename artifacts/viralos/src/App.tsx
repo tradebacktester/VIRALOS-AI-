@@ -16,6 +16,8 @@ import Trends from "@/pages/Trends";
 import Settings from "@/pages/Settings";
 import AgentStudio from "@/pages/AgentStudio";
 import StrategyPage from "@/pages/StrategyPage";
+import CommandCenter from "@/pages/CommandCenter";
+import MemoryVault from "@/pages/MemoryVault";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -118,7 +120,7 @@ function AppRoutes() {
         <ProtectedPage><Projects /></ProtectedPage>
       </Route>
       <Route path="/projects/:id">
-        {(params) => (
+        {() => (
           <ProtectedPage><ProjectDetail /></ProtectedPage>
         )}
       </Route>
@@ -136,6 +138,12 @@ function AppRoutes() {
       </Route>
       <Route path="/strategy">
         <ProtectedPage><StrategyPage /></ProtectedPage>
+      </Route>
+      <Route path="/command">
+        <ProtectedPage><CommandCenter /></ProtectedPage>
+      </Route>
+      <Route path="/memory">
+        <ProtectedPage><MemoryVault /></ProtectedPage>
       </Route>
       <Route component={NotFound} />
     </Switch>

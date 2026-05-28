@@ -10,7 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Video, Plus, Trash2, ChevronRight, Search, Loader2 } from "lucide-react";
+import { hasVideoBlob, downloadVideo } from "@/lib/video-store";
+import { Video, Plus, Trash2, ChevronRight, Search, Loader2, Download } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "text-muted-foreground bg-muted",
@@ -163,6 +164,15 @@ export default function Projects() {
                     <div className="w-14 h-1 bg-muted rounded-full overflow-hidden">
                       <div className="h-full bg-primary rounded-full" style={{ width: `${project.progress}%` }} />
                     </div>
+                  )}
+                  {project.status === "done" && hasVideoBlob(project.id) && (
+                    <button
+                      onClick={() => { downloadVideo(project.id, project.title); toast({ title: "Download started" }); }}
+                      title="Download video"
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold hover:bg-emerald-500/25 transition-colors"
+                    >
+                      <Download className="w-3 h-3" /> Download
+                    </button>
                   )}
                   <Link href={`/projects/${project.id}`}>
                     <button data-testid={`button-open-project-${project.id}`} className="p-1.5 rounded-lg hover:bg-muted transition-colors">

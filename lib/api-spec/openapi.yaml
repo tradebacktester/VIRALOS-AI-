@@ -1,22 +1,39 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: VIRALOS AI - Autonomous Viral Content Operating System
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: projects
+    description: Video project operations
+  - name: videos
+    description: Video generation and management
+  - name: scripts
+    description: AI script generation
+  - name: clips
+    description: Clip finder and management
+  - name: voiceovers
+    description: Voiceover generation
+  - name: captions
+    description: Caption generation
+  - name: exports
+    description: Platform export management
+  - name: analytics
+    description: Analytics and trends
+  - name: trends
+    description: Trend radar
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +41,455 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Projects ─────────────────────────────────────────────────────────────
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List all projects
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: platform
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Create a new project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+
+  /projects/{id}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get a project by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateProject
+      tags: [projects]
+      summary: Update a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectUpdate"
+      responses:
+        "200":
+          description: Updated project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+    delete:
+      operationId: deleteProject
+      tags: [projects]
+      summary: Delete a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Script Generation ─────────────────────────────────────────────────────
+  /scripts/generate:
+    post:
+      operationId: generateScript
+      tags: [scripts]
+      summary: Generate a viral script from a prompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScriptGenerationInput"
+      responses:
+        "200":
+          description: Generated script
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedScript"
+
+  /scripts/{projectId}:
+    get:
+      operationId: getScript
+      tags: [scripts]
+      summary: Get script for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Script
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedScript"
+
+  # ── Clips ────────────────────────────────────────────────────────────────
+  /clips/search:
+    post:
+      operationId: searchClips
+      tags: [clips]
+      summary: Search for clips matching a query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClipSearchInput"
+      responses:
+        "200":
+          description: Clips found
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Clip"
+
+  /clips/generate:
+    post:
+      operationId: generateAiClip
+      tags: [clips]
+      summary: Generate an AI video clip as fallback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiClipInput"
+      responses:
+        "200":
+          description: Generated clip job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClipJob"
+
+  /clips/{projectId}:
+    get:
+      operationId: listProjectClips
+      tags: [clips]
+      summary: List clips assigned to a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Clips
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Clip"
+
+  # ── Voiceover ────────────────────────────────────────────────────────────
+  /voiceovers/generate:
+    post:
+      operationId: generateVoiceover
+      tags: [voiceovers]
+      summary: Generate a voiceover for a script
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoiceoverInput"
+      responses:
+        "200":
+          description: Voiceover job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VoiceoverJob"
+
+  /voiceovers/{projectId}:
+    get:
+      operationId: getVoiceover
+      tags: [voiceovers]
+      summary: Get voiceover for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Voiceover
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VoiceoverJob"
+
+  # ── Captions ─────────────────────────────────────────────────────────────
+  /captions/generate:
+    post:
+      operationId: generateCaptions
+      tags: [captions]
+      summary: Generate animated captions for a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaptionInput"
+      responses:
+        "200":
+          description: Caption data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaptionData"
+
+  /captions/{projectId}:
+    get:
+      operationId: getCaptions
+      tags: [captions]
+      summary: Get captions for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Caption data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaptionData"
+
+  # ── Video Render / Edit ───────────────────────────────────────────────────
+  /videos/render:
+    post:
+      operationId: renderVideo
+      tags: [videos]
+      summary: Trigger automated video editing and render
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenderInput"
+      responses:
+        "200":
+          description: Render job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RenderJob"
+
+  /videos/{projectId}/status:
+    get:
+      operationId: getVideoStatus
+      tags: [videos]
+      summary: Get render status for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Render job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RenderJob"
+
+  /videos/{projectId}:
+    get:
+      operationId: getVideo
+      tags: [videos]
+      summary: Get the final video for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Video
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Video"
+
+  # ── Exports ───────────────────────────────────────────────────────────────
+  /exports/generate:
+    post:
+      operationId: generateExports
+      tags: [exports]
+      summary: Generate platform-ready exports
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExportInput"
+      responses:
+        "200":
+          description: Export jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExportJob"
+
+  /exports/{projectId}:
+    get:
+      operationId: listExports
+      tags: [exports]
+      summary: List exports for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Export list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExportJob"
+
+  # ── Analytics ─────────────────────────────────────────────────────────────
+  /analytics/dashboard:
+    get:
+      operationId: getDashboardStats
+      tags: [analytics]
+      summary: Get dashboard statistics summary
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /analytics/projects/recent:
+    get:
+      operationId: getRecentProjects
+      tags: [analytics]
+      summary: Get recent project activity
+      responses:
+        "200":
+          description: Recent projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+
+  /analytics/platform-breakdown:
+    get:
+      operationId: getPlatformBreakdown
+      tags: [analytics]
+      summary: Get video counts and performance by platform
+      responses:
+        "200":
+          description: Platform breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlatformStat"
+
+  # ── Trends ────────────────────────────────────────────────────────────────
+  /trends:
+    get:
+      operationId: listTrends
+      tags: [trends]
+      summary: Get current trending topics for content ideas
+      parameters:
+        - name: platform
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Trending topics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trend"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +497,404 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    Project:
+      type: object
+      required: [id, title, prompt, status, platform, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        prompt:
+          type: string
+        status:
+          type: string
+          enum: [pending, scripting, voicing, finding_clips, editing, rendering, done, failed]
+        platform:
+          type: string
+          enum: [youtube_shorts, tiktok, reels, x_clips, all]
+        thumbnailUrl:
+          type: ["string", "null"]
+        duration:
+          type: ["integer", "null"]
+        progress:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ProjectInput:
+      type: object
+      required: [title, prompt, platform]
+      properties:
+        title:
+          type: string
+        prompt:
+          type: string
+        platform:
+          type: string
+          enum: [youtube_shorts, tiktok, reels, x_clips, all]
+
+    ProjectUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        status:
+          type: string
+        progress:
+          type: integer
+
+    GeneratedScript:
+      type: object
+      required: [id, projectId, hook, script, cta, platformStyle, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        hook:
+          type: string
+        script:
+          type: string
+        emotionCurve:
+          type: array
+          items:
+            type: string
+        cta:
+          type: string
+        platformStyle:
+          type: string
+        scenes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Scene"
+        createdAt:
+          type: string
+          format: date-time
+
+    Scene:
+      type: object
+      required: [index, description, duration]
+      properties:
+        index:
+          type: integer
+        description:
+          type: string
+        emotion:
+          type: string
+        duration:
+          type: integer
+
+    ScriptGenerationInput:
+      type: object
+      required: [projectId, prompt, platform]
+      properties:
+        projectId:
+          type: integer
+        prompt:
+          type: string
+        platform:
+          type: string
+        style:
+          type: string
+
+    Clip:
+      type: object
+      required: [id, projectId, source, url, thumbnailUrl, duration, query, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        source:
+          type: string
+          enum: [pexels, pixabay, unsplash, runway, pika, ai_generated]
+        url:
+          type: string
+        thumbnailUrl:
+          type: string
+        duration:
+          type: integer
+        query:
+          type: string
+        emotionTag:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    ClipSearchInput:
+      type: object
+      required: [projectId, query]
+      properties:
+        projectId:
+          type: integer
+        query:
+          type: string
+        emotionTone:
+          type: string
+        count:
+          type: integer
+
+    AiClipInput:
+      type: object
+      required: [projectId, description, duration]
+      properties:
+        projectId:
+          type: integer
+        description:
+          type: string
+        duration:
+          type: integer
+        provider:
+          type: string
+          enum: [runway, pika, stable_video]
+
+    ClipJob:
+      type: object
+      required: [id, projectId, status, provider, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        status:
+          type: string
+          enum: [queued, processing, done, failed]
+        provider:
+          type: string
+        resultUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    VoiceoverInput:
+      type: object
+      required: [projectId, text]
+      properties:
+        projectId:
+          type: integer
+        text:
+          type: string
+        voiceStyle:
+          type: string
+          enum: [motivational_male, motivational_female, dramatic_male, dramatic_female, calm_male, calm_female]
+        emotionalTone:
+          type: string
+
+    VoiceoverJob:
+      type: object
+      required: [id, projectId, status, voiceStyle, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        status:
+          type: string
+          enum: [queued, processing, done, failed]
+        voiceStyle:
+          type: string
+        audioUrl:
+          type: ["string", "null"]
+        durationMs:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    CaptionInput:
+      type: object
+      required: [projectId, script]
+      properties:
+        projectId:
+          type: integer
+        script:
+          type: string
+        style:
+          type: string
+          enum: [dopamine, minimal, cinematic, bold, emoji_heavy]
+
+    CaptionData:
+      type: object
+      required: [id, projectId, style, words, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        style:
+          type: string
+        words:
+          type: array
+          items:
+            $ref: "#/components/schemas/CaptionWord"
+        createdAt:
+          type: string
+          format: date-time
+
+    CaptionWord:
+      type: object
+      required: [word, startMs, endMs]
+      properties:
+        word:
+          type: string
+        startMs:
+          type: integer
+        endMs:
+          type: integer
+        highlighted:
+          type: boolean
+        emoji:
+          type: ["string", "null"]
+
+    RenderInput:
+      type: object
+      required: [projectId]
+      properties:
+        projectId:
+          type: integer
+        transitionStyle:
+          type: string
+          enum: [cinematic, fast_cut, smooth, beat_sync]
+        backgroundMusic:
+          type: boolean
+        autoZoom:
+          type: boolean
+
+    RenderJob:
+      type: object
+      required: [id, projectId, status, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        status:
+          type: string
+          enum: [queued, processing, done, failed]
+        progress:
+          type: integer
+        stage:
+          type: ["string", "null"]
+        outputUrl:
+          type: ["string", "null"]
+        errorMessage:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    Video:
+      type: object
+      required: [id, projectId, url, platform, durationSec, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        url:
+          type: string
+        thumbnailUrl:
+          type: ["string", "null"]
+        platform:
+          type: string
+        durationSec:
+          type: integer
+        fileSizeBytes:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    ExportInput:
+      type: object
+      required: [projectId, platforms]
+      properties:
+        projectId:
+          type: integer
+        platforms:
+          type: array
+          items:
+            type: string
+
+    ExportJob:
+      type: object
+      required: [id, projectId, platform, status, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        platform:
+          type: string
+          enum: [youtube_shorts, tiktok, reels, x_clips]
+        status:
+          type: string
+          enum: [queued, processing, done, failed]
+        downloadUrl:
+          type: ["string", "null"]
+        width:
+          type: integer
+        height:
+          type: integer
+        fileSizeBytes:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    DashboardStats:
+      type: object
+      required: [totalProjects, videosGenerated, exportsReady, inProgress, successRate]
+      properties:
+        totalProjects:
+          type: integer
+        videosGenerated:
+          type: integer
+        exportsReady:
+          type: integer
+        inProgress:
+          type: integer
+        successRate:
+          type: number
+        totalDurationSec:
+          type: integer
+
+    PlatformStat:
+      type: object
+      required: [platform, count, successRate]
+      properties:
+        platform:
+          type: string
+        count:
+          type: integer
+        successRate:
+          type: number
+
+    Trend:
+      type: object
+      required: [id, topic, platform, score, category, createdAt]
+      properties:
+        id:
+          type: integer
+        topic:
+          type: string
+        platform:
+          type: string
+        score:
+          type: integer
+        category:
+          type: string
+        emoji:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time

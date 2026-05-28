@@ -14,6 +14,8 @@ import ProjectDetail from "@/pages/ProjectDetail";
 import Analytics from "@/pages/Analytics";
 import Trends from "@/pages/Trends";
 import Settings from "@/pages/Settings";
+import AgentStudio from "@/pages/AgentStudio";
+import StrategyPage from "@/pages/StrategyPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -128,6 +130,12 @@ function AppRoutes() {
       </Route>
       <Route path="/settings">
         <ProtectedPage><Settings /></ProtectedPage>
+      </Route>
+      <Route path="/agents">
+        <ProtectedPage><AgentStudio /></ProtectedPage>
+      </Route>
+      <Route path="/strategy">
+        <ProtectedPage><StrategyPage /></ProtectedPage>
       </Route>
       <Route component={NotFound} />
     </Switch>

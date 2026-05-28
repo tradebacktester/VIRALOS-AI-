@@ -9,14 +9,18 @@ import {
   TrendingUp,
   Settings,
   Zap,
+  Bot,
+  Brain,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { path: "/create", label: "Create Video", icon: Video },
+  { path: "/agents", label: "AI Agents", icon: Bot, badge: "AI" },
   { path: "/projects", label: "Projects", icon: FolderOpen },
   { path: "/analytics", label: "Analytics", icon: BarChart3 },
   { path: "/trends", label: "Trend Radar", icon: TrendingUp },
+  { path: "/strategy", label: "Strategy", icon: Brain },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -41,7 +45,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 p-3 space-y-0.5" data-testid="sidebar-nav">
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto" data-testid="sidebar-nav">
           {NAV_ITEMS.map((item) => {
             const active = location === item.path || location.startsWith(item.path + "/");
             const Icon = item.icon;
@@ -59,7 +63,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 >
                   <Icon className={`w-4 h-4 shrink-0 ${active ? "text-primary" : ""}`} />
                   {item.label}
-                  {item.path === "/create" && (
+                  {item.badge && (
+                    <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-semibold tracking-wide">
+                      {item.badge}
+                    </span>
+                  )}
+                  {item.path === "/create" && !item.badge && (
                     <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-semibold tracking-wide">NEW</span>
                   )}
                 </motion.div>

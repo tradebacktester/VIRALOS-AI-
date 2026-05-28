@@ -28,6 +28,7 @@ import Marketplace from "@/pages/Marketplace";
 import BrandCreator from "@/pages/BrandCreator";
 import StoryUniverse from "@/pages/StoryUniverse";
 import EnterpriseOps from "@/pages/EnterpriseOps";
+import CinematicEngine from "@/pages/CinematicEngine";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
@@ -120,6 +121,7 @@ function AppRoutes() {
       <Route path="/brand"><ProtectedPage><BrandCreator /></ProtectedPage></Route>
       <Route path="/universe"><ProtectedPage><StoryUniverse /></ProtectedPage></Route>
       <Route path="/enterprise"><ProtectedPage><EnterpriseOps /></ProtectedPage></Route>
+      <Route path="/cinematic"><ProtectedPage><CinematicEngine /></ProtectedPage></Route>
       <Route component={NotFound} />
     </Switch>
   );

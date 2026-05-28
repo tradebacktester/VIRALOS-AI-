@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Video, FolderOpen, BarChart3, TrendingUp,
   Settings, Zap, Bot, Brain, Cpu, Database, Upload, FlaskConical,
   CalendarDays, Lightbulb, DollarSign, ChevronDown, ChevronRight,
-  Dna, Store, Globe, Clapperboard, Server, Target,
+  Dna, Store, Globe, Clapperboard, Server, Target, Film,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -22,6 +22,7 @@ const NAV_GROUPS = [
     label: "Create",
     items: [
       { path: "/create", label: "Create Video", icon: Video },
+      { path: "/cinematic", label: "Cinematic FX Engine", icon: Film, badge: "NEW" },
       { path: "/agents", label: "Agent Studio", icon: Bot },
       { path: "/strategy", label: "Strategy AI", icon: Brain },
       { path: "/calendar", label: "Content Calendar", icon: CalendarDays },

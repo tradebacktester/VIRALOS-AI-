@@ -1,3 +1,4 @@
 - [Clerk v6 API changes](clerk-v6.md) — SignedIn/SignedOut removed; use Show with when="signed-in"/"signed-out"; publishableKeyFromHost from @clerk/react/internal
 - [Clerk proxy setup](clerk-proxy.md) — proxy is prod-only; VITE_CLERK_PROXY_URL empty in dev intentionally; never hardcode /api/__clerk in frontend
+- [Clerk provisioning required](clerk-provisioning.md) — "failed_to_load_clerk_js" always means setupClerkWhitelabelAuth() was never called; code wiring is correct but secrets are missing
 - [Framer Motion ease types](framer-motion-ease.md) — ease:"easeOut" string fails TS; omit ease or use typed Easing; transition:{duration:X} is safe

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   Zap, Activity, TrendingUp, Brain, Upload, FlaskConical, DollarSign,
   Cpu, Globe, Database, Radio, ChevronRight, ArrowUpRight, Loader2,
@@ -84,17 +84,20 @@ export default function Dashboard() {
   const viralData = usePulsingData(30, 55, 98);
   const engageData = usePulsingData(30, 3, 18);
 
+  const [, setLocation] = useLocation();
+  const [quickPrompt, setQuickPrompt] = useState("");
+
   useEffect(() => {
-    fetch("/api/analytics/dashboard-stats")
+    fetch("/api/analytics/dashboard")
       .then((r) => r.json())
       .then((d) => setStats(d))
       .catch(() => setStats(null))
       .finally(() => setLoadingStats(false));
   }, []);
 
-  const totalVideos = stats ? Number(stats.totalVideos ?? 0) : 0;
-  const completedVideos = stats ? Number(stats.completedVideos ?? 0) : 0;
-  const totalViews = stats ? Number(stats.totalViews ?? 0) : 0;
+  const totalVideos = stats ? Number(stats.totalProjects ?? 0) : 0;
+  const completedVideos = stats ? Number(stats.videosGenerated ?? 0) : 0;
+  const totalViews = stats ? Number(stats.exportsReady ?? 0) : 0;
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#080b0f]">
@@ -234,21 +237,72 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="col-span-12 lg:col-span-4 glass rounded-xl border border-white/5 p-4">
-            <div className="flex items-center gap-2 mb-3">
+          {/* Quick Launch — interactive mission control */}
+          <div className="col-span-12 lg:col-span-4 glass rounded-xl border border-white/5 p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
               <Zap className="w-3.5 h-3.5 text-yellow-400" />
               <span className="text-[10px] font-bold text-foreground tracking-widest uppercase">Quick Launch</span>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {QUICK_ACTIONS.map(({ label, icon: Icon, href, color, bg, border }) => (
+
+            {/* Instant prompt launcher */}
+            <div className="space-y-2">
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Launch a video — type any idea</p>
+              <div className="flex gap-2">
+                <input
+                  value={quickPrompt}
+                  onChange={(e) => setQuickPrompt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && quickPrompt.trim()) {
+                      setLocation("/create");
+                    }
+                  }}
+                  placeholder="e.g. dark motivation content…"
+                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/40 min-w-0"
+                />
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setLocation("/create")}
+                  className="shrink-0 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors flex items-center gap-1"
+                >
+                  <Play className="w-3 h-3" /> Go
+                </motion.button>
+              </div>
+            </div>
+
+            {/* Action shortcuts */}
+            <div className="grid grid-cols-2 gap-1.5">
+              {[
+                { label: "New Video", icon: Play, href: "/create", color: "text-primary", bg: "bg-primary/10", border: "border-primary/20" },
+                { label: "A/B Test", icon: FlaskConical, href: "/ab-testing", color: "text-violet-400", bg: "bg-violet-400/10", border: "border-violet-400/20" },
+                { label: "Publish", icon: Upload, href: "/publisher", color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/20" },
+                { label: "Ask JARVIS", icon: Cpu, href: "/command-center", color: "text-cyan-400", bg: "bg-cyan-400/10", border: "border-cyan-400/20" },
+                { label: "Trends", icon: TrendingUp, href: "/trends", color: "text-yellow-400", bg: "bg-yellow-400/10", border: "border-yellow-400/20" },
+                { label: "Analytics", icon: BarChart3, href: "/insights", color: "text-pink-400", bg: "bg-pink-400/10", border: "border-pink-400/20" },
+              ].map(({ label, icon: Icon, href, color, bg, border }) => (
                 <Link key={href} href={href}>
-                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                    className={`flex items-center gap-2 p-3 rounded-xl border ${border} ${bg} cursor-pointer transition-all hover:opacity-90`}>
-                    <Icon className={`w-4 h-4 ${color} shrink-0`} />
-                    <span className={`text-xs font-semibold ${color}`}>{label}</span>
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
+                    className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border ${border} ${bg} cursor-pointer transition-all`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${color} shrink-0`} />
+                    <span className={`text-[11px] font-semibold ${color}`}>{label}</span>
                   </motion.div>
                 </Link>
+              ))}
+            </div>
+
+            {/* Status row */}
+            <div className="flex items-center justify-between pt-1 border-t border-white/5">
+              {[
+                { label: "Projects", value: String(totalVideos) },
+                { label: "Rendered", value: String(completedVideos) },
+                { label: "Exported", value: String(totalViews) },
+              ].map(({ label, value }) => (
+                <div key={label} className="text-center">
+                  <p className="text-sm font-black font-mono text-foreground">{value}</p>
+                  <p className="text-[8px] text-muted-foreground uppercase tracking-wider">{label}</p>
+                </div>
               ))}
             </div>
           </div>

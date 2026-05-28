@@ -15,6 +15,8 @@ import abTestsRouter from "./ab-tests";
 import calendarRouter from "./calendar";
 import insightsRouter from "./insights";
 import monetizationRouter from "./monetization";
+import personalityRouter from "./personality";
+import brandRouter from "./brand";
 
 const router: IRouter = Router();
 
@@ -34,5 +36,7 @@ router.use("/ab-tests", abTestsRouter);
 router.use("/calendar", calendarRouter);
 router.use("/insights", insightsRouter);
 router.use("/monetization", monetizationRouter);
+router.use("/personality", personalityRouter);
+router.use("/brand", brandRouter);
 
 export default router;

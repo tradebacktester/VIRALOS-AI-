@@ -19,3 +19,5 @@ export * from "./performance_analytics";
 export * from "./ab_tests";
 export * from "./content_calendar";
 export * from "./learning_insights";
+export * from "./style_profiles";
+export * from "./brand_identities";

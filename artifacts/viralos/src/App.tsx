@@ -23,6 +23,11 @@ import ABTesting from "@/pages/ABTesting";
 import ContentCalendar from "@/pages/ContentCalendar";
 import Insights from "@/pages/Insights";
 import Monetization from "@/pages/Monetization";
+import PersonalityClone from "@/pages/PersonalityClone";
+import Marketplace from "@/pages/Marketplace";
+import BrandCreator from "@/pages/BrandCreator";
+import StoryUniverse from "@/pages/StoryUniverse";
+import EnterpriseOps from "@/pages/EnterpriseOps";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
@@ -110,6 +115,11 @@ function AppRoutes() {
       <Route path="/calendar"><ProtectedPage><ContentCalendar /></ProtectedPage></Route>
       <Route path="/insights"><ProtectedPage><Insights /></ProtectedPage></Route>
       <Route path="/monetization"><ProtectedPage><Monetization /></ProtectedPage></Route>
+      <Route path="/personality"><ProtectedPage><PersonalityClone /></ProtectedPage></Route>
+      <Route path="/marketplace"><ProtectedPage><Marketplace /></ProtectedPage></Route>
+      <Route path="/brand"><ProtectedPage><BrandCreator /></ProtectedPage></Route>
+      <Route path="/universe"><ProtectedPage><StoryUniverse /></ProtectedPage></Route>
+      <Route path="/enterprise"><ProtectedPage><EnterpriseOps /></ProtectedPage></Route>
       <Route component={NotFound} />
     </Switch>
   );

@@ -4,16 +4,17 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 const router = Router();
 
 router.post("/scene-analyze", async (req, res) => {
-  const { preset, effects, prompt, platform } = req.body as {
+  const { preset, effects, prompt, platform, scene_description } = req.body as {
     preset?: string;
     effects?: string[];
     prompt?: string;
     platform?: string;
+    scene_description?: string;
   };
 
   const effectsList = (effects ?? []).join(", ") || "none selected";
   const presetName = preset ?? "unknown";
-  const contentPrompt = prompt ?? "short-form viral video content";
+  const contentPrompt = scene_description || prompt || "short-form viral video content";
   const targetPlatform = platform ?? "YouTube Shorts / Instagram Reels";
 
   try {
@@ -34,8 +35,8 @@ You understand viral video aesthetics, YouTube Shorts and Instagram Reels visual
 
 Preset: ${presetName}
 Active Effects: ${effectsList}
-Content Type: ${contentPrompt}
-Platform: ${targetPlatform}
+Content Description: ${contentPrompt}
+Target Platform: ${targetPlatform}
 
 Provide analysis in this JSON format:
 {

@@ -204,12 +204,12 @@ export default function CreateVideo() {
     const pid = await createProjectInDB();
 
     simulateSteps([
-      "Analyzing viral patterns for your niche...",
-      "GPT-4o: Engineering curiosity-gap hook...",
-      "Mapping emotional arc — dopamine spikes...",
-      `Optimizing for ${platform === "reels" ? "Instagram" : "YouTube"} retention algorithm...`,
-      "Calibrating CTA for maximum conversion...",
-      "Scoring viral probability...",
+      "Initializing GPT-4o script engine — loading viral pattern library...",
+      `Analyzing top-performing ${platform === "reels" ? "Instagram Reels" : "YouTube Shorts"} in your niche...`,
+      "Engineering curiosity-gap hook — psychological trigger mapping...",
+      "Structuring emotional arc: Hook → Tension → Insight → Proof → CTA...",
+      `Calibrating pacing for ${platform === "reels" ? "Instagram" : "YouTube"} retention algorithm (watch-time optimization)...`,
+      "Scoring viral probability across 6 dimensions — finalizing script...",
     ], async () => {
       let script: GeneratedScript = {
         hook: `Most people get ${prompt.split(" ").slice(0, 4).join(" ")} completely wrong. Here's the truth:`,
@@ -278,14 +278,14 @@ export default function CreateVideo() {
 
     const voiceLabel = VOICE_STYLES.find((v) => v.value === voiceStyle)?.label ?? voiceStyle;
     simulateSteps([
-      "Connecting to ElevenLabs neural voice engine...",
-      `Cloning style profile: ${voiceLabel}...`,
-      "Analyzing script for prosody and emphasis...",
-      "Adding emotional pacing and micro-pauses...",
-      "Syncing breath patterns to script rhythm...",
-      "Processing audio: 48kHz stereo mastering...",
-      "Selecting B-roll clips from library (2,400+ clips)...",
-      "Matching visual scenes to script timestamps...",
+      `ElevenLabs v2 Turbo API — loading neural voice model: ${voiceLabel}...`,
+      "Tokenizing script: prosody, cadence, and emphasis detection...",
+      "Neural synthesis: generating 48kHz lossless stereo audio...",
+      "Engineering emotional pacing — aligning dopamine spike points...",
+      "Applying realistic breath patterns, pauses, and intonation curves...",
+      "Audio mastering: EQ, compression, -14 LUFS normalization...",
+      "Scanning 2,400+ B-roll clips — semantic emotion-match scoring...",
+      "Auto-sequencing visual timeline to voice frame timestamps...",
     ], () => {
       if (projectId) patchProjectStatus(projectId, "finding_clips", 55);
       setIsLoading(false);
@@ -313,14 +313,15 @@ export default function CreateVideo() {
     }
 
     const styleLabel = VIDEO_STYLES.find((v) => v.value === videoStyle)?.label ?? videoStyle;
+    const platformLabel = platform === "reels" ? "Instagram Reels" : "YouTube Shorts";
     const labels = [
-      `Applying ${styleLabel} color grade...`,
-      "Assembling clips in sequence — precision cut...",
-      "Syncing voiceover to video timeline...",
-      "Adding cinematic transitions and motion...",
-      "Rendering captions and typography...",
-      "Encoding H.264 — maximum quality...",
-      "Finalizing output file...",
+      `Loading ${styleLabel} 12-bit LUT — initializing GPU color pipeline...`,
+      "Neural clip assembly: precision-cutting at emotion peak timestamps...",
+      "Frame-accurate voice sync: aligning audio to video millisecond grid...",
+      "AI caption compositor: generating dopamine typography overlays...",
+      "Compositing cinematic transitions, motion blur, and FX layers...",
+      `H.265 2-pass encoding — ${platformLabel} spec optimization (9:16, 60fps)...`,
+      "Muxing audio/video streams — writing final container...",
     ];
     let prog = 0;
     let labelIdx = 0;

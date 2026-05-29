@@ -464,6 +464,7 @@ export default function CinematicEngine() {
   const [selectedCamera, setSelectedCamera] = useState(CAMERA_PRESETS[0]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<Record<string, unknown> | null>(null);
+  const [sceneDescription, setSceneDescription] = useState("");
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [renderQueue, setRenderQueue] = useState([
     { id: 1, name: "MMA Intro Sequence", preset: "MMA Motivation", status: "rendering", progress: 67 },
@@ -498,6 +499,7 @@ export default function CinematicEngine() {
           preset: selectedPreset.name,
           effects: [...activeEffects],
           platform: "YouTube Shorts / Instagram Reels",
+          scene_description: sceneDescription.trim() || undefined,
         }),
         signal: AbortSignal.timeout(20000),
       });
@@ -649,6 +651,84 @@ export default function CinematicEngine() {
         <div className="w-72 shrink-0 border-r border-white/5 flex flex-col">
           <div className="relative h-48 overflow-hidden bg-black border-b border-white/5">
             <ParticleCanvas preset={selectedPreset} />
+
+            {/* Vignette overlay */}
+            {activeEffects.has("vignette") && (
+              <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.85) 100%)", opacity: (effectIntensities["vignette"] ?? 35) / 100 * 2 }} />
+            )}
+
+            {/* Warm color grade */}
+            {(activeEffects.has("warmGrade") || activeEffects.has("colorGrade")) && (
+              <div className="absolute inset-0 pointer-events-none mix-blend-color" style={{ background: `rgba(255,160,50,${(effectIntensities["warmGrade"] ?? effectIntensities["colorGrade"] ?? 50) / 300})` }} />
+            )}
+
+            {/* Cold grade */}
+            {activeEffects.has("coldGrade") && (
+              <div className="absolute inset-0 pointer-events-none mix-blend-color" style={{ background: `rgba(80,120,255,${(effectIntensities["coldGrade"] ?? 50) / 300})` }} />
+            )}
+
+            {/* Red tint (horror) */}
+            {activeEffects.has("redTint") && (
+              <div className="absolute inset-0 pointer-events-none" style={{ background: `rgba(180,0,0,${(effectIntensities["redTint"] ?? 50) / 400})` }} />
+            )}
+
+            {/* Chromatic aberration */}
+            {(activeEffects.has("chromaticAber") || activeEffects.has("glitch")) && (
+              <>
+                <div className="absolute inset-0 pointer-events-none" style={{ boxShadow: `inset ${Math.round((effectIntensities["chromaticAber"] ?? effectIntensities["glitch"] ?? 65) / 20)}px 0 0 rgba(255,0,80,0.35), inset -${Math.round((effectIntensities["chromaticAber"] ?? effectIntensities["glitch"] ?? 65) / 20)}px 0 0 rgba(0,200,255,0.35)` }} />
+              </>
+            )}
+
+            {/* Lens flare */}
+            {activeEffects.has("lensFlare") && (
+              <div className="absolute pointer-events-none" style={{ top: "10%", right: "12%", width: 44, height: 44, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,250,200,0.95) 0%, rgba(255,220,80,0.5) 35%, transparent 70%)", filter: `blur(3px)`, opacity: (effectIntensities["lensFlare"] ?? 50) / 100 * 0.85 }} />
+            )}
+
+            {/* Aura glow */}
+            {activeEffects.has("auraGlow") && (
+              <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse at center, ${selectedPreset.color}${Math.round((effectIntensities["auraGlow"] ?? 85) / 100 * 60).toString(16).padStart(2, "0")} 0%, transparent 65%)` }} />
+            )}
+
+            {/* Volumetric light */}
+            {activeEffects.has("volumetricLight") && (
+              <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(135deg, rgba(255,255,255,${(effectIntensities["volumetricLight"] ?? 70) / 600}) 0%, transparent 50%)` }} />
+            )}
+
+            {/* Camera shake */}
+            {activeEffects.has("cameraShake") && (
+              <motion.div className="absolute inset-0 pointer-events-none border-2 rounded"
+                style={{ borderColor: `${selectedPreset.color}30` }}
+                animate={{ x: [0, -2, 2, -1, 1, 0], y: [0, 1, -1, 2, -1, 0] }}
+                transition={{ duration: 0.25, repeat: Infinity, repeatType: "mirror", ease: "linear" }}
+              />
+            )}
+
+            {/* Speed ramp — pulsing brightness */}
+            {activeEffects.has("speedRamp") && (
+              <motion.div className="absolute inset-0 pointer-events-none"
+                animate={{ opacity: [0, 0.15, 0] }}
+                transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut" }}
+                style={{ background: "rgba(255,255,255,1)" }}
+              />
+            )}
+
+            {/* Film grain */}
+            {activeEffects.has("filmGrain") && (
+              <div className="absolute inset-0 pointer-events-none opacity-[0.12]" style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")`,
+                backgroundSize: "150px 150px",
+              }} />
+            )}
+
+            {/* Depth of field edge blur */}
+            {activeEffects.has("depthOfField") && (
+              <div className="absolute inset-0 pointer-events-none" style={{
+                boxShadow: `inset 0 0 ${Math.round((effectIntensities["depthOfField"] ?? 60) / 5)}px ${Math.round((effectIntensities["depthOfField"] ?? 60) / 8)}px rgba(0,0,0,0.6)`,
+                backdropFilter: `blur(${(effectIntensities["depthOfField"] ?? 60) / 60}px)`,
+                WebkitMaskImage: "radial-gradient(ellipse 60% 60% at center, transparent 40%, black 100%)",
+              }} />
+            )}
+
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <motion.div
                 key={selectedPreset.id}
@@ -666,6 +746,21 @@ export default function CinematicEngine() {
                     </span>
                   ))}
                 </div>
+                {activeEffects.size > 0 && (
+                  <div className="flex gap-1 mt-2 flex-wrap justify-center">
+                    {[...activeEffects].slice(0, 3).map((id) => {
+                      const fx = EFFECTS_LIBRARY.find((e) => e.id === id);
+                      return fx ? (
+                        <span key={id} className="text-[8px] px-1.5 py-0.5 rounded-full bg-primary/20 border border-primary/30 text-primary font-bold">
+                          {fx.name}
+                        </span>
+                      ) : null;
+                    })}
+                    {activeEffects.size > 3 && (
+                      <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-white/10 text-muted-foreground">+{activeEffects.size - 3}</span>
+                    )}
+                  </div>
+                )}
               </motion.div>
             </div>
             <div className="absolute inset-0 pointer-events-none" style={{ background: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px)" }} />
@@ -779,18 +874,27 @@ export default function CinematicEngine() {
                   <div className="p-4 rounded-2xl border border-white/5 bg-white/2">
                     <h3 className="text-xs font-black text-foreground uppercase tracking-widest mb-1">Auto Scene Intelligence</h3>
                     <p className="text-[11px] text-muted-foreground">Upload or link a video clip — the AI analyzes every scene and generates a precise cinematic effect plan.</p>
-                    <div className="mt-3 flex gap-2">
-                      <div className="flex-1 p-3 rounded-xl border border-dashed border-white/10 flex items-center justify-center text-[11px] text-muted-foreground gap-2 cursor-pointer hover:border-primary/40 transition-colors">
-                        <Upload className="w-4 h-4" /> Drop video or paste URL
+                    <div className="mt-3 space-y-2">
+                      <textarea
+                        value={sceneDescription}
+                        onChange={(e) => setSceneDescription(e.target.value)}
+                        placeholder={`Describe your content (e.g. "MMA highlight reel — intense gym shots, fighter training, motivational speech overlay")...`}
+                        rows={2}
+                        className="w-full bg-white/3 border border-white/10 rounded-xl px-3 py-2 text-[11px] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/40 resize-none"
+                      />
+                      <div className="flex gap-2">
+                        <div className="flex-1 p-2.5 rounded-xl border border-dashed border-white/10 flex items-center justify-center text-[11px] text-muted-foreground gap-2 cursor-pointer hover:border-primary/30 transition-colors">
+                          <Upload className="w-3.5 h-3.5" /> Drop video or paste URL (optional)
+                        </div>
+                        <button
+                          onClick={runAnalysis}
+                          disabled={isAnalyzing}
+                          className="px-4 py-2 rounded-xl bg-primary text-white text-[11px] font-bold hover:bg-primary/90 transition-all flex items-center gap-2 disabled:opacity-50 shrink-0"
+                        >
+                          {isAnalyzing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Cpu className="w-3.5 h-3.5" />}
+                          {isAnalyzing ? "Analyzing..." : "Analyze Scene"}
+                        </button>
                       </div>
-                      <button
-                        onClick={runAnalysis}
-                        disabled={isAnalyzing}
-                        className="px-4 py-2 rounded-xl bg-primary text-white text-[11px] font-bold hover:bg-primary/90 transition-all flex items-center gap-2 disabled:opacity-50 shrink-0"
-                      >
-                        {isAnalyzing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Cpu className="w-3.5 h-3.5" />}
-                        {isAnalyzing ? "Analyzing..." : "Analyze"}
-                      </button>
                     </div>
                   </div>
 

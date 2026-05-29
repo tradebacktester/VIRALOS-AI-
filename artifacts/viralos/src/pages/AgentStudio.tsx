@@ -123,24 +123,66 @@ export default function AgentStudio() {
   const [activeTab, setActiveTab] = useState<"hooks" | "emotion" | "visuals" | "virality" | "captions" | "logs">("virality");
   const [trendScanning, setTrendScanning] = useState(false);
   const [trendResult, setTrendResult] = useState<TrendData | null>(null);
+  const [liveAgentLogs, setLiveAgentLogs] = useState<Array<{ agent: string; message: string; timestamp: string }>>([]);
 
   const runAgents = async () => {
     if (!prompt.trim()) { toast({ title: "Enter a video concept", variant: "destructive" }); return; }
     setRunning(true);
     setResult(null);
+    setLiveAgentLogs([]);
+
     try {
-      const res = await fetch("/api/agents/run", {
+      const response = await fetch("/api/agents/run/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, platform, niche: niche || undefined, mode }),
       });
-      const data = await res.json() as AgentRunResult;
-      setResult(data);
-      if (data.virality) setActiveTab("virality");
-      else if (data.hooks) setActiveTab("hooks");
-      toast({ title: data.status === "completed" ? "Agents completed!" : "Run finished", description: data.runId ? `Run #${data.runId}` : undefined });
-    } catch {
-      toast({ title: "Agent run failed — check API connection", variant: "destructive" });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.body) throw new Error("No stream body");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() ?? "";
+
+        for (const part of parts) {
+          const lines = part.split("\n");
+          let eventType = "";
+          let dataStr = "";
+          for (const line of lines) {
+            if (line.startsWith("event: ")) eventType = line.slice(7).trim();
+            else if (line.startsWith("data: ")) dataStr = line.slice(6).trim();
+          }
+          if (!dataStr) continue;
+          try {
+            const data = JSON.parse(dataStr);
+            if (eventType === "agent_activity") {
+              setLiveAgentLogs((prev) => [...prev, { agent: data.agent, message: data.message, timestamp: data.timestamp }]);
+            } else if (eventType === "result") {
+              const result = data as AgentRunResult;
+              setResult(result);
+              if (result.virality) setActiveTab("virality");
+              else if (result.hooks) setActiveTab("hooks");
+            } else if (eventType === "done") {
+              toast({ title: data.status === "completed" ? "All agents completed!" : "Pipeline finished", description: data.runId ? `Run #${data.runId}` : undefined });
+            } else if (eventType === "error") {
+              throw new Error(data.message ?? "Agent error");
+            }
+          } catch (e) {
+            if (e instanceof SyntaxError) continue;
+            throw e;
+          }
+        }
+      }
+    } catch (err) {
+      toast({ title: "Agent run failed", description: String(err), variant: "destructive" });
     } finally {
       setRunning(false);
     }
@@ -318,6 +360,44 @@ export default function AgentStudio() {
             : <><Play className="w-4 h-4" /> Run Agents</>}
         </button>
       </div>
+
+      {/* Live Agent Activity Log */}
+      <AnimatePresence>
+        {(running || liveAgentLogs.length > 0) && !result && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="glass rounded-xl border border-primary/20 bg-primary/3 p-5"
+          >
+            <p className="text-[10px] font-bold text-primary uppercase tracking-wider mb-3 flex items-center gap-2">
+              <Activity className={`w-3.5 h-3.5 ${running ? "animate-pulse" : ""}`} />
+              Live Agent Pipeline
+              {running && <span className="ml-auto text-[10px] font-normal text-muted-foreground">Processing...</span>}
+            </p>
+            <div className="space-y-2 max-h-52 overflow-y-auto scrollbar-none">
+              {liveAgentLogs.map((log, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="flex items-start gap-2.5"
+                >
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 mt-1.5" />
+                  <span className="text-[10px] font-bold text-primary shrink-0 min-w-[90px]">{log.agent}</span>
+                  <span className="text-[11px] text-muted-foreground">{log.message}</span>
+                </motion.div>
+              ))}
+              {running && liveAgentLogs.length === 0 && (
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary shrink-0" />
+                  Initializing 8-agent GPT-4o pipeline...
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Results */}
       <AnimatePresence>

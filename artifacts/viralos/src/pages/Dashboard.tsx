@@ -9,7 +9,7 @@ import {
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis } from "recharts";
 
 const TICKER_BASE = [
-  "HOOK_SCORE", "VIRAL_PROB", "RETENTION", "AB_WIN", "CALENDAR", "GPU_LOAD", "CACHE_HIT", "INSIGHTS", "CHANNELS", "REVENUE_EST", "ENGAGEMENT", "LOOP_ACTIVE",
+  "HOOK_SCORE", "VIRAL_PROB", "RETENTION", "AB_WIN", "YT_SHORTS", "GPU_LOAD", "CACHE_HIT", "INSIGHTS", "CHANNELS", "REVENUE_EST", "ENGAGEMENT", "LOOP_ACTIVE",
 ];
 
 interface SystemStatus {
@@ -45,7 +45,7 @@ function LiveTicker({ status }: { status: SystemStatus | null }) {
     VIRAL_PROB: status?.latestViralProbability != null ? `${status.latestViralProbability.toFixed(1)}%` : "—",
     RETENTION: status?.latestRetentionScore != null ? `${status.latestRetentionScore.toFixed(1)}%` : "—",
     AB_WIN: "confidence 94%",
-    CALENDAR: "posts queued",
+    YT_SHORTS: "optimized",
     GPU_LOAD: status?.activeTasks != null ? `${status.activeTasks} active` : "0 active",
     CACHE_HIT: status?.cacheHitRate != null ? `${status.cacheHitRate}%` : "—",
     INSIGHTS: `${status?.completedAgentRuns ?? 0} runs`,
@@ -208,7 +208,7 @@ export default function Dashboard() {
     { label: "Virality Scorer", load: latestViral != null ? Math.min(100, Math.round(latestViral)) : 0 },
     { label: "Memory Vault", load: Math.min(100, (status?.completedAgentRuns ?? 0) * 3) },
     { label: "Trend Radar", load: latestShare != null ? Math.min(100, Math.round(latestShare)) : 0 },
-    { label: "Calendar AI", load: (status?.activeTasks ?? 0) * 12 },
+    { label: "Caption Agent", load: (status?.activeTasks ?? 0) * 12 },
     { label: "Publisher Bot", load: (status?.completedProjects ?? 0) * 8 },
     { label: "Self-Optimizer", load: latestRetention != null ? Math.min(100, Math.round(latestRetention)) : 0 },
   ];

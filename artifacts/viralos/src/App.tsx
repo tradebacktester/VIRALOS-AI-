@@ -21,7 +21,6 @@ import CommandCenter from "@/pages/CommandCenter";
 import MemoryVault from "@/pages/MemoryVault";
 import Publisher from "@/pages/Publisher";
 import ABTesting from "@/pages/ABTesting";
-import ContentCalendar from "@/pages/ContentCalendar";
 import Insights from "@/pages/Insights";
 import Monetization from "@/pages/Monetization";
 import PersonalityClone from "@/pages/PersonalityClone";
@@ -164,7 +163,6 @@ function AppRoutes() {
       <Route path="/memory"><ProtectedPage><MemoryVault /></ProtectedPage></Route>
       <Route path="/publisher"><ProtectedPage><Publisher /></ProtectedPage></Route>
       <Route path="/ab-testing"><ProtectedPage><ABTesting /></ProtectedPage></Route>
-      <Route path="/calendar"><ProtectedPage><ContentCalendar /></ProtectedPage></Route>
       <Route path="/insights"><ProtectedPage><Insights /></ProtectedPage></Route>
       <Route path="/monetization"><ProtectedPage><Monetization /></ProtectedPage></Route>
       <Route path="/personality"><ProtectedPage><PersonalityClone /></ProtectedPage></Route>

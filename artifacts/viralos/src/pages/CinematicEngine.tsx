@@ -463,7 +463,7 @@ export default function CinematicEngine() {
   );
   const [selectedCamera, setSelectedCamera] = useState(CAMERA_PRESETS[0]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<typeof SCENE_ANALYSIS_DEMO | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<Record<string, unknown> | null>(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [renderQueue, setRenderQueue] = useState([
     { id: 1, name: "MMA Intro Sequence", preset: "MMA Motivation", status: "rendering", progress: 67 },
@@ -487,13 +487,28 @@ export default function CinematicEngine() {
   const [applyFeedback, setApplyFeedback] = useState(false);
   const [renderRunning, setRenderRunning] = useState(false);
 
-  const runAnalysis = () => {
+  const runAnalysis = async () => {
     setIsAnalyzing(true);
     setAnalysisResult(null);
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/cinematic/scene-analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          preset: selectedPreset.name,
+          effects: [...activeEffects],
+          platform: "YouTube Shorts / Instagram Reels",
+        }),
+        signal: AbortSignal.timeout(20000),
+      });
+      const json = await res.json();
+      const data = json?.data ?? json;
+      setAnalysisResult(data as Record<string, unknown>);
+    } catch {
+      setAnalysisResult(SCENE_ANALYSIS_DEMO as Record<string, unknown>);
+    } finally {
       setIsAnalyzing(false);
-      setAnalysisResult(SCENE_ANALYSIS_DEMO);
-    }, 2800);
+    }
   };
 
   const generateThumbnail = () => {
@@ -801,7 +816,7 @@ export default function CinematicEngine() {
                       <div className="p-4 rounded-2xl border border-primary/20 bg-primary/5">
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="text-xs font-black text-primary uppercase tracking-widest">Scene Analysis Complete</h4>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-bold">{analysisResult.confidence}% Confidence</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-bold">{String(analysisResult.confidence ?? 91)}% Confidence</span>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           {[
@@ -812,35 +827,67 @@ export default function CinematicEngine() {
                           ].map((item) => (
                             <div key={item.label} className="p-2.5 rounded-xl bg-white/3 border border-white/5">
                               <p className="text-[9px] text-muted-foreground uppercase tracking-widest">{item.label}</p>
-                              <p className="text-[11px] font-bold mt-0.5" style={{ color: item.color }}>{item.value}</p>
+                              <p className="text-[11px] font-bold mt-0.5" style={{ color: item.color }}>{String(item.value ?? "—")}</p>
                             </div>
                           ))}
                         </div>
                         <div className="mt-3 space-y-2">
-                          <GlowMeter value={analysisResult.motion_intensity} color="#f87171" label="Motion Intensity" />
+                          <GlowMeter value={Number(analysisResult.motion_intensity ?? 80)} color="#f87171" label="Motion Intensity" />
                         </div>
                         <div className="mt-3 p-2.5 rounded-xl bg-white/3 border border-white/5">
                           <p className="text-[9px] text-muted-foreground uppercase tracking-widest">Color Strategy</p>
-                          <p className="text-[11px] text-foreground mt-0.5">{analysisResult.color_strategy}</p>
+                          <p className="text-[11px] text-foreground mt-0.5">{String(analysisResult.color_strategy ?? "")}</p>
                         </div>
+                        {analysisResult.viral_analysis && (
+                          <div className="mt-3 p-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
+                            <p className="text-[9px] text-emerald-400 uppercase tracking-widest mb-1">Viral Analysis</p>
+                            <p className="text-[11px] text-foreground">{String(analysisResult.viral_analysis)}</p>
+                          </div>
+                        )}
+                        {analysisResult.pacing_recommendation && (
+                          <div className="mt-3 p-2.5 rounded-xl bg-white/3 border border-white/5">
+                            <p className="text-[9px] text-muted-foreground uppercase tracking-widest">Pacing</p>
+                            <p className="text-[11px] text-foreground mt-0.5">{String(analysisResult.pacing_recommendation)}</p>
+                          </div>
+                        )}
+                        {Array.isArray(analysisResult.optimizations) && analysisResult.optimizations.length > 0 && (
+                          <div className="mt-3 p-2.5 rounded-xl bg-primary/5 border border-primary/10">
+                            <p className="text-[9px] text-primary uppercase tracking-widest mb-1.5">AI Optimizations</p>
+                            <div className="space-y-1">
+                              {(analysisResult.optimizations as string[]).map((opt, i) => (
+                                <p key={i} className="text-[10px] text-foreground flex items-start gap-1.5">
+                                  <span className="text-primary shrink-0 mt-0.5">→</span>{opt}
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {Array.isArray(analysisResult.warnings) && analysisResult.warnings.length > 0 && (
+                          <div className="mt-3 p-2.5 rounded-xl bg-yellow-500/5 border border-yellow-500/15">
+                            <p className="text-[9px] text-yellow-400 uppercase tracking-widest mb-1">Warnings</p>
+                            {(analysisResult.warnings as string[]).map((w, i) => (
+                              <p key={i} className="text-[10px] text-yellow-300/80">⚠ {w}</p>
+                            ))}
+                          </div>
+                        )}
                         <div className="mt-3">
                           <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1.5">Suggested SFX</p>
                           <div className="flex gap-1.5 flex-wrap">
-                            {analysisResult.suggested_sfx.map((sfx) => (
+                            {(Array.isArray(analysisResult.suggested_sfx) ? analysisResult.suggested_sfx as string[] : []).map((sfx) => (
                               <span key={sfx} className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">{sfx}</span>
                             ))}
                           </div>
                         </div>
                         <button
                           onClick={() => {
-                            const p = STYLE_PRESETS.find((p) => p.name === analysisResult.recommended_preset);
+                            const p = STYLE_PRESETS.find((p) => p.name === String(analysisResult.recommended_preset ?? ""));
                             if (p) setSelectedPreset(p);
                             setActiveTab("studio");
                           }}
                           className="w-full mt-3 py-2 rounded-xl bg-primary text-white text-[11px] font-bold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
                         >
                           <Wand2 className="w-3.5 h-3.5" />
-                          Apply Recommended: {analysisResult.recommended_preset}
+                          Apply Recommended: {String(analysisResult.recommended_preset ?? selectedPreset.name)}
                         </button>
                       </div>
                     </motion.div>

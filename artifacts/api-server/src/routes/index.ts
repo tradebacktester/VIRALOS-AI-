@@ -18,6 +18,7 @@ import monetizationRouter from "./monetization";
 import personalityRouter from "./personality";
 import brandRouter from "./brand";
 import enterpriseRouter from "./enterprise";
+import cinematicRouter from "./cinematic";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use("/monetization", monetizationRouter);
 router.use("/personality", personalityRouter);
 router.use("/brand", brandRouter);
 router.use("/enterprise", enterpriseRouter);
+router.use("/cinematic", cinematicRouter);
 
 export default router;

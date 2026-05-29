@@ -17,6 +17,7 @@ import insightsRouter from "./insights";
 import monetizationRouter from "./monetization";
 import personalityRouter from "./personality";
 import brandRouter from "./brand";
+import enterpriseRouter from "./enterprise";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use("/insights", insightsRouter);
 router.use("/monetization", monetizationRouter);
 router.use("/personality", personalityRouter);
 router.use("/brand", brandRouter);
+router.use("/enterprise", enterpriseRouter);
 
 export default router;

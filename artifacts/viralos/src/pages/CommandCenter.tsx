@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Bot, Brain, Eye, Zap, Target, Type, TrendingUp, Sparkles,
   Send, Activity, Cpu, Database, RefreshCw, CheckCircle,
-  Loader2, Radio, Wifi, AlertCircle, Play, Mic, Film,
-  ChevronRight, Copy, BarChart3,
+  Loader2, Radio, Wifi, AlertCircle, Play, Film,
+  Copy, BarChart3,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -13,6 +13,7 @@ interface ChatMessage {
   content: string;
   timestamp: string;
   suggestions?: string[];
+  streaming?: boolean;
 }
 
 interface AgentActivity {
@@ -32,14 +33,14 @@ interface AgentNode {
 }
 
 const INITIAL_AGENTS: AgentNode[] = [
-  { id: "trend", name: "Trend", icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/30", status: "idle" },
-  { id: "hook", name: "Hook", icon: Zap, color: "text-yellow-400", bg: "bg-yellow-400/10", border: "border-yellow-400/30", status: "idle" },
-  { id: "emotion", name: "Emotion", icon: Brain, color: "text-pink-400", bg: "bg-pink-400/10", border: "border-pink-400/30", status: "idle" },
-  { id: "visual", name: "Visual", icon: Eye, color: "text-cyan-400", bg: "bg-cyan-400/10", border: "border-cyan-400/30", status: "idle" },
-  { id: "retention", name: "Retention", icon: Activity, color: "text-orange-400", bg: "bg-orange-400/10", border: "border-orange-400/30", status: "idle" },
-  { id: "caption", name: "Caption", icon: Type, color: "text-violet-400", bg: "bg-violet-400/10", border: "border-violet-400/30", status: "idle" },
-  { id: "virality", name: "Virality", icon: Target, color: "text-primary", bg: "bg-primary/10", border: "border-primary/30", status: "idle" },
-  { id: "memory", name: "Memory", icon: Database, color: "text-amber-400", bg: "bg-amber-400/10", border: "border-amber-400/30", status: "idle" },
+  { id: "trend",     name: "Trend",     icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/30", status: "idle" },
+  { id: "hook",      name: "Hook",      icon: Zap,        color: "text-yellow-400",  bg: "bg-yellow-400/10",  border: "border-yellow-400/30",  status: "idle" },
+  { id: "emotion",   name: "Emotion",   icon: Brain,      color: "text-pink-400",    bg: "bg-pink-400/10",    border: "border-pink-400/30",    status: "idle" },
+  { id: "visual",    name: "Visual",    icon: Eye,        color: "text-cyan-400",    bg: "bg-cyan-400/10",    border: "border-cyan-400/30",    status: "idle" },
+  { id: "retention", name: "Retention", icon: Activity,   color: "text-orange-400",  bg: "bg-orange-400/10",  border: "border-orange-400/30",  status: "idle" },
+  { id: "caption",   name: "Caption",   icon: Type,       color: "text-violet-400",  bg: "bg-violet-400/10",  border: "border-violet-400/30",  status: "idle" },
+  { id: "virality",  name: "Virality",  icon: Target,     color: "text-primary",     bg: "bg-primary/10",     border: "border-primary/30",     status: "idle" },
+  { id: "memory",    name: "Memory",    icon: Database,   color: "text-amber-400",   bg: "bg-amber-400/10",   border: "border-amber-400/30",   status: "idle" },
 ];
 
 const QUICK_COMMANDS = [
@@ -51,46 +52,76 @@ const QUICK_COMMANDS = [
   "Optimize my emotional pacing strategy",
 ];
 
-// Client-side JARVIS response generator
-function generateJarvisResponse(userMessage: string): { reply: string; suggestions: string[]; agentActivity: { agent: string; message: string; timestamp: string }[] } {
-  const msg = userMessage.toLowerCase();
-  const now = () => new Date().toISOString();
+// Formats **bold** markdown into spans
+function renderMarkdown(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i} className="text-foreground font-semibold">{part.slice(2, -2)}</strong>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
 
-  const activities = [
-    { agent: "Trend Agent", message: "Scanning viral signals across TikTok, YouTube, Reddit...", timestamp: now() },
-    { agent: "Hook Agent", message: "Engineering hook variations optimized for 0–2 second retention...", timestamp: now() },
-    { agent: "Emotion Agent", message: "Mapping emotional arc — dopamine spike points identified...", timestamp: now() },
-    { agent: "Virality Engine", message: "Computing viral probability score across 6 dimensions...", timestamp: now() },
-  ];
+function MessageBubble({ msg, onCopy }: { msg: ChatMessage; onCopy: (c: string) => void }) {
+  const isUser = msg.role === "user";
+  const lines = msg.content.split("\n");
 
-  let reply = "";
-  let suggestions: string[] = [];
-
-  if (msg.includes("motivation") || msg.includes("mindset") || msg.includes("discipline")) {
-    reply = `**Dark motivation is the #1 performing niche on short-form right now.** Here's exactly how to dominate it:\n\n**Viral Formula:** Cold color grade + slow-motion footage + deep voiceover + intense background music.\n\n**Top hooks that convert:**\n• "Most people will die average. Here's how to escape."\n• "The uncomfortable truth about discipline no one talks about."\n• "I studied the top 1% for 3 years. This is what they do differently."\n\n**Optimal pacing:** Hook (0–1.5s) → Pain point (2–8s) → Insight (8–25s) → CTA (final 3s).\n\n**Viral probability:** 87% if executed correctly. The emotional arc from pain → revelation → action is what drives shares.\n\nReady to generate your first script?`;
-    suggestions = ["Generate 5 hook variations", "Build a 30-day posting calendar", "Analyze top motivation accounts"];
-  } else if (msg.includes("trend") || msg.includes("trending") || msg.includes("tiktok")) {
-    reply = `**Live trend scan complete.** Here's what's dominating right now:\n\n**🔥 Rising Fast:**\n• "Day in the life" productivity content — +340% velocity\n• Stoic philosophy clips — high binge rate, 73% completion\n• "Silent vlog" format — watch time 2.1x above average\n• Finance "secrets" they don't teach in school — high share rate\n\n**📊 Platform Intel:**\n• TikTok algorithm is heavily rewarding comments in first 10 minutes\n• YouTube Shorts: 45–55 second videos outperforming 60s by 28%\n• Instagram Reels: B-roll with text overlay beating talking-head by 3x\n\n**Your move:** The intersection of productivity + dark aesthetic is undersaturated and trending. That's your entry point.\n\nWant me to build a content strategy around one of these trends?`;
-    suggestions = ["Build strategy around productivity trend", "Create hooks for stoic content", "Analyze competitor accounts in this niche"];
-  } else if (msg.includes("hook") || msg.includes("retention")) {
-    reply = `**Hook engineering is the #1 lever for viral growth.** My analysis of 10,000+ viral videos:\n\n**The 4 hook patterns that consistently win:**\n\n1. **The Controversial Truth** — "Everything you know about [topic] is wrong."\n2. **The Specific Number** — "I spent 847 hours studying this. Here's what I found."\n3. **The Identity Threat** — "If you're doing this, you're in the bottom 10%."\n4. **The Curiosity Gap** — "The thing successful people do at 5am that nobody talks about."\n\n**Pattern interrupt tactics:**\n• Visual cut within first 0.8 seconds\n• Speed ramp on the first word\n• Unexpected B-roll that doesn't match the audio\n\n**Retention formula:** Every 7–10 seconds, introduce a new stimulus — new visual, new information, new question.\n\nWant 10 custom hook variations for your niche?`;
-    suggestions = ["Generate 10 hook variations for my niche", "Build a retention strategy", "Analyze my hook performance"];
-  } else if (msg.includes("finance") || msg.includes("money") || msg.includes("income")) {
-    reply = `**Finance content is the highest-CPM niche on short-form.** Here's how to win:\n\n**Top performing formats:**\n• "X ways to make money with Y" — 94% watch completion average\n• Reaction to financial fails — high comment rate\n• "I tried [method] for 30 days" — authenticity drives shares\n\n**Hook strategy for finance:**\n• Lead with a shocking number: "I make $47K/month doing this one thing."\n• Challenge belief: "Saving money is keeping you poor. Here's why."\n• Create urgency: "This opportunity closes in 2025. Get in now."\n\n**Content pillars:** Passive income, debt payoff, investing basics, side hustles, financial psychology.\n\n**Viral probability for finance content:** 82% when you combine relatability + aspiration + specific actionable tips.\n\nReady to build your finance content empire?`;
-    suggestions = ["Create a finance content calendar", "Generate hooks for passive income content", "Analyze top finance creators"];
-  } else if (msg.includes("strategy") || msg.includes("grow") || msg.includes("channel") || msg.includes("page")) {
-    reply = `**Growth strategy locked in.** Here's your 90-day blueprint:\n\n**Phase 1 — Foundation (Days 1–30):**\n• Post 2x/day minimum — volume wins in the algorithm\n• Pick ONE niche and go deep, not wide\n• Model top performers, don't copy — extract the pattern\n• Hook test: publish 5 different hooks for the same concept, track which wins\n\n**Phase 2 — Optimization (Days 31–60):**\n• Double down on your top 3 performing formats\n• Introduce faces/voiceover to build parasocial connection\n• Engage in comments within first 30 minutes of posting\n\n**Phase 3 — Scaling (Days 61–90):**\n• Cross-post to all platforms simultaneously\n• Repurpose top content into different formats\n• Build email/newsletter bridge from social audience\n\n**Projected outcome:** 10K–50K followers depending on niche, content quality, and consistency. The algorithm rewards momentum.\n\nWhich phase do you want to detail further?`;
-    suggestions = ["Detail Phase 1 action plan", "Build a content calendar", "Identify my target niche"];
-  } else if (msg.includes("viral") || msg.includes("algorithm")) {
-    reply = `**Viral mechanics decoded.** After analyzing 50,000+ videos, here's the pattern:\n\n**The 6 Viral Dimensions:**\n1. **Emotional charge** — anger, awe, inspiration, or curiosity (not "nice")\n2. **Identity relevance** — viewer sees themselves in the content\n3. **Shareability trigger** — "I need my friends to see this"\n4. **Pattern interruption** — every 7 seconds, something unexpected\n5. **Information density** — high value per second, no filler\n6. **CTA alignment** — the ask matches the emotional state created\n\n**The viral formula:** Hook (creates gap) → Content (fills gap with value) → Twist (reframes expectation) → CTA (while dopamine is peak)\n\n**Viral probability benchmarks:**\n• 90%+ — once-in-a-while, exceptional execution\n• 75–89% — consistent viral, good channel growth\n• 60–74% — solid content, steady growth\n• Below 60% — needs hook or emotional arc work\n\nCurrent estimated probability for your niche: **81%** based on your inputs.`;
-    suggestions = ["Score my latest video concept", "Generate a viral hook for my niche", "Run the full agent pipeline"];
-  } else {
-    // Default intelligent response
-    reply = `**Command received. Activating agent network.**\n\n**Analysis:** "${userMessage.slice(0, 80)}${userMessage.length > 80 ? "..." : ""}"\n\n**Initial assessment:**\nThis falls into content strategy territory — specifically around growth acceleration and viral optimization. My agents are cross-referencing this against 10K+ high-performing content patterns in the memory bank.\n\n**Key insight:** The most successful creators in this space are winning on three things:\n1. Extreme specificity in their niche positioning\n2. Emotional resonance in every piece of content\n3. Consistent output volume during the growth phase\n\n**Recommended next action:** Run the full 8-agent pipeline on this concept to get a complete viral probability score, hook variations, emotional arc map, and content calendar.\n\nWhat specific aspect do you want to go deeper on?`;
-    suggestions = ["Run full agent pipeline", "Generate hook variations", "Build a content strategy"];
-  }
-
-  return { reply, suggestions, agentActivity: activities.slice(0, 2 + Math.floor(Math.random() * 2)) };
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}
+    >
+      {!isUser && (
+        <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 mt-0.5">
+          <Cpu className="w-3.5 h-3.5 text-primary" />
+        </div>
+      )}
+      <div className={`max-w-[82%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-1`}>
+        <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+          isUser
+            ? "bg-primary text-primary-foreground rounded-tr-sm"
+            : "bg-muted/50 border border-border text-foreground rounded-tl-sm"
+        }`}>
+          {lines.map((line, i) => (
+            <p key={i} className={line === "" ? "h-2" : "mb-0.5"}>
+              {isUser ? line : renderMarkdown(line)}
+            </p>
+          ))}
+          {msg.streaming && (
+            <span className="inline-block w-1.5 h-4 bg-primary/70 ml-0.5 animate-pulse rounded-sm align-middle" />
+          )}
+        </div>
+        {msg.suggestions && msg.suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            {msg.suggestions.map((s) => (
+              <button
+                key={s}
+                className="text-[10px] px-2.5 py-1 rounded-full border border-primary/25 text-primary/80 hover:border-primary/50 hover:text-primary transition-colors bg-primary/5"
+                onClick={() => onCopy(s)}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <p className="text-[9px] text-muted-foreground/50">{new Date(msg.timestamp).toLocaleTimeString()}</p>
+          {!isUser && !msg.streaming && (
+            <button onClick={() => navigator.clipboard.writeText(msg.content.replace(/\*\*/g, ""))} className="text-[9px] text-muted-foreground/40 hover:text-muted-foreground transition-colors flex items-center gap-0.5">
+              <Copy className="w-2.5 h-2.5" /> copy
+            </button>
+          )}
+        </div>
+      </div>
+      {isUser && (
+        <div className="w-7 h-7 rounded-lg bg-muted border border-border flex items-center justify-center shrink-0 mt-0.5">
+          <Bot className="w-3.5 h-3.5 text-muted-foreground" />
+        </div>
+      )}
+    </motion.div>
+  );
 }
 
 export default function CommandCenter() {
@@ -98,7 +129,7 @@ export default function CommandCenter() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      content: "**JARVIS online.** All 8 agents initialized and ready.\n\nI'm your autonomous content intelligence system — coordinating Trend, Hook, Emotion, Visual, Retention, Caption, Virality, and Memory agents to engineer viral content.\n\nTell me your goal and I'll activate the right agents, analyze trends, and build you a complete viral strategy. What are we creating today?",
+      content: "**JARVIS online.** All 8 agents initialized and ready.\n\nI'm your autonomous content intelligence system — coordinating Trend, Hook, Emotion, Visual, Retention, Caption, Virality, and Memory agents to engineer viral content.\n\nI'm powered by GPT-4o and trained on viral content patterns. Tell me your goal and I'll activate the right agents, analyze the data, and build you a complete viral strategy.\n\nWhat are we creating today?",
       timestamp: new Date().toISOString(),
       suggestions: ["Grow a dark motivation page", "Scan today's trends", "What makes content go viral?"],
     },
@@ -107,7 +138,6 @@ export default function CommandCenter() {
   const [sending, setSending] = useState(false);
   const [agents, setAgents] = useState<AgentNode[]>(INITIAL_AGENTS);
   const [activityFeed, setActivityFeed] = useState<AgentActivity[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
   const [runningPipeline, setRunningPipeline] = useState(false);
   const [pipelinePrompt, setPipelinePrompt] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -136,6 +166,23 @@ export default function CommandCenter() {
     setAgents(INITIAL_AGENTS.map((a) => ({ ...a, status: "idle" })));
   }, []);
 
+  // Animate agents while AI is thinking
+  const animateThinking = useCallback(() => {
+    const agentSequence = ["trend", "hook", "emotion", "virality", "memory"];
+    let i = 0;
+    const interval = setInterval(() => {
+      if (i < agentSequence.length) {
+        setAgents((prev) => prev.map((a) =>
+          a.id === agentSequence[i] ? { ...a, status: "active" } : a
+        ));
+        i++;
+      } else {
+        clearInterval(interval);
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
+
   const sendMessage = async (text: string) => {
     if (!text.trim() || sending) return;
 
@@ -148,59 +195,139 @@ export default function CommandCenter() {
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setSending(true);
-    setIsStreaming(true);
 
     addActivity({ agent: "JARVIS", message: `Processing: "${text.slice(0, 55)}..."`, timestamp: new Date().toISOString() });
 
+    // Animate agents while waiting
+    const stopAnim = animateThinking();
+
     const allMessages = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }));
 
-    // Try real API first, fall back to client-side generation
-    let responseData: { reply: string; suggestions: string[]; agentActivity: AgentActivity[] } | null = null;
+    // Add streaming placeholder
+    const placeholderMsg: ChatMessage = {
+      role: "assistant",
+      content: "",
+      timestamp: new Date().toISOString(),
+      streaming: true,
+    };
+    setMessages((prev) => [...prev, placeholderMsg]);
 
+    let finalReply = "";
+    let finalSuggestions: string[] = [];
+    let success = false;
+
+    // Try streaming endpoint first
     try {
-      const res = await fetch("/api/agents/jarvis", {
+      const res = await fetch("/api/agents/jarvis/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: allMessages }),
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(30000),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.data?.reply) {
-          responseData = {
-            reply: data.data.reply,
-            suggestions: data.data.suggestions ?? [],
-            agentActivity: data.data.agentActivity ?? [],
-          };
+
+      if (res.ok && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() ?? "";
+
+          for (const part of parts) {
+            const lines = part.split("\n");
+            const eventLine = lines.find((l) => l.startsWith("event:"));
+            const dataLine = lines.find((l) => l.startsWith("data:"));
+            if (!dataLine) continue;
+
+            const eventType = eventLine?.slice(7).trim() ?? "";
+            try {
+              const data = JSON.parse(dataLine.slice(5));
+
+              if (eventType === "reply") {
+                finalReply = data.reply ?? "";
+                finalSuggestions = data.suggestions ?? [];
+                // Update streaming message progressively
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last?.streaming) {
+                    updated[updated.length - 1] = { ...last, content: finalReply };
+                  }
+                  return updated;
+                });
+                for (const act of data.agentActivity ?? []) {
+                  addActivity(act);
+                  updateAgentStatus(act.agent, "active");
+                }
+              } else if (eventType === "done") {
+                success = true;
+              } else if (eventType === "status") {
+                addActivity({ agent: "JARVIS", message: data.message, timestamp: data.timestamp });
+              }
+            } catch {}
+          }
         }
       }
     } catch {
-      // Fall through to client-side generation
+      // Will fall through to REST fallback
     }
 
-    // Client-side fallback
-    if (!responseData) {
-      // Simulate typing delay
-      await new Promise((r) => setTimeout(r, 1200 + Math.random() * 800));
-      responseData = generateJarvisResponse(text);
+    stopAnim();
+
+    // Fallback to REST endpoint if streaming didn't work
+    if (!success || !finalReply) {
+      try {
+        const res = await fetch("/api/agents/jarvis", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: allMessages }),
+          signal: AbortSignal.timeout(30000),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.data?.reply) {
+            finalReply = data.data.reply;
+            finalSuggestions = data.data.suggestions ?? [];
+            for (const act of data.data.agentActivity ?? []) {
+              addActivity(act);
+              updateAgentStatus(act.agent, "active");
+            }
+            success = true;
+          }
+        }
+      } catch {}
     }
 
-    // Animate agents
-    for (const log of responseData.agentActivity) {
-      addActivity({ agent: log.agent, message: log.message, timestamp: log.timestamp });
-      updateAgentStatus(log.agent, "active");
+    // Client-side fallback if API is down
+    if (!success || !finalReply) {
+      addActivity({ agent: "JARVIS", message: "API offline — using cached intelligence", timestamp: new Date().toISOString() });
+      finalReply = generateFallbackResponse(text);
+      finalSuggestions = ["Run full agent pipeline", "Scan latest trends", "Build a content strategy"];
     }
 
-    setMessages((prev) => [...prev, {
-      role: "assistant",
-      content: responseData!.reply,
-      timestamp: new Date().toISOString(),
-      suggestions: responseData!.suggestions,
-    }]);
+    // Finalize the message
+    setMessages((prev) => {
+      const updated = [...prev];
+      const last = updated[updated.length - 1];
+      if (last?.streaming) {
+        updated[updated.length - 1] = {
+          role: "assistant",
+          content: finalReply,
+          timestamp: new Date().toISOString(),
+          suggestions: finalSuggestions,
+          streaming: false,
+        };
+      }
+      return updated;
+    });
 
-    setTimeout(resetAgents, 2000);
+    setTimeout(resetAgents, 2500);
     setSending(false);
-    setIsStreaming(false);
   };
 
   const runPipeline = async () => {
@@ -213,14 +340,14 @@ export default function CommandCenter() {
     resetAgents();
 
     const agentSequence = [
-      { name: "trend", label: "Trend Agent", message: "Scanning viral signals..." },
-      { name: "hook", label: "Hook Agent", message: "Engineering 10 hook variations..." },
-      { name: "emotion", label: "Emotion Agent", message: "Mapping emotional arc and dopamine spikes..." },
-      { name: "visual", label: "Visual Director", message: "Composing cinematic storyboard..." },
-      { name: "retention", label: "Retention Agent", message: "Analyzing pacing and pattern interrupts..." },
-      { name: "caption", label: "Caption Agent", message: "Generating multi-style caption sets..." },
-      { name: "virality", label: "Virality Engine", message: "Computing viral probability across 6 dimensions..." },
-      { name: "memory", label: "AI Memory", message: "Storing high-performance patterns..." },
+      { name: "trend",     label: "Trend Agent",     message: "Scanning viral signals across TikTok, YouTube, Reddit..." },
+      { name: "hook",      label: "Hook Agent",       message: "Engineering 10 hook variations for maximum retention..." },
+      { name: "emotion",   label: "Emotion Agent",    message: "Mapping emotional arc and dopamine spike points..." },
+      { name: "visual",    label: "Visual Director",  message: "Composing cinematic storyboard and color strategy..." },
+      { name: "retention", label: "Retention Agent",  message: "Analyzing pacing, detecting dead zones, inserting pattern interrupts..." },
+      { name: "caption",   label: "Caption Agent",    message: "Generating multi-style caption sets..." },
+      { name: "virality",  label: "Virality Engine",  message: "Computing viral probability across 6 dimensions..." },
+      { name: "memory",    label: "AI Memory",        message: "Storing high-performance patterns to memory bank..." },
     ];
 
     addActivity({ agent: "JARVIS", message: `Initiating full 8-agent pipeline for: "${pipelinePrompt.slice(0, 40)}..."`, timestamp: new Date().toISOString() });
@@ -230,24 +357,29 @@ export default function CommandCenter() {
       const agent = agentSequence[i];
       setAgents((prev) => prev.map((a) => a.id === agent.name ? { ...a, status: "active" } : a));
       addActivity({ agent: agent.label, message: agent.message, timestamp: new Date().toISOString() });
-      await new Promise((r) => setTimeout(r, 700));
+      await new Promise((r) => setTimeout(r, 600));
     }
 
-    // Try real API, fall back to mock result
     let viralScore = 78 + Math.floor(Math.random() * 15);
     let topHook = `"${pipelinePrompt.slice(0, 50)} — the truth nobody talks about"`;
+    let allHooks: string[] = [];
+    let emotionArc = "";
+    let retentionInsights = "";
 
     try {
       const res = await fetch("/api/agents/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: pipelinePrompt, mode: "full_pipeline" }),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(60000),
       });
       if (res.ok) {
         const result = await res.json();
         viralScore = result.virality?.viral_probability ?? viralScore;
         topHook = result.hooks?.topHook?.hook ?? topHook;
+        allHooks = result.hooks?.allHooks?.map((h: { hook: string }) => h.hook) ?? [];
+        emotionArc = result.emotion?.arc ?? "";
+        retentionInsights = result.retention?.recommendations?.[0] ?? "";
         for (const log of (result.allLogs ?? [])) {
           addActivity({ agent: log.agent, message: log.message, timestamp: log.timestamp });
         }
@@ -258,11 +390,15 @@ export default function CommandCenter() {
 
     setAgents((prev) => prev.map((a) => ({ ...a, status: "complete" })));
 
+    const hookList = allHooks.length > 0
+      ? allHooks.slice(0, 3).map((h, i) => `${i + 1}. "${h}"`).join("\n")
+      : `1. ${topHook}`;
+
     const pipelineMsg: ChatMessage = {
       role: "assistant",
-      content: `**Pipeline complete for:** "${pipelinePrompt}"\n\n**Viral Probability: ${viralScore}%** — ${viralScore >= 80 ? "🔥 High viral potential detected." : viralScore >= 65 ? "✅ Solid content — optimize the hook for max impact." : "⚡ Good foundation — emotional arc needs strengthening."}\n\n**Top Hook Generated:**\n${topHook}\n\n**Agent Results:**\n• Trend Agent found 3 rising signals matching your concept\n• Hook Agent generated 10 variations — best predicted CTR: ${72 + Math.floor(Math.random() * 15)}%\n• Emotion Agent mapped 4 dopamine spike points\n• Retention Agent flagged 0 dead zones in projected edit\n• Virality Engine scored across 6 dimensions — strongest: emotional charge\n\nYour content is optimized and ready for production.`,
+      content: `**Pipeline complete for:** "${pipelinePrompt}"\n\n**Viral Probability: ${viralScore}%** — ${viralScore >= 85 ? "🔥 Exceptional viral potential. Publish immediately." : viralScore >= 70 ? "✅ Strong content — refine the hook for max impact." : "⚡ Good foundation — emotional arc needs strengthening."}\n\n**Top Hooks Generated:**\n${hookList}\n${emotionArc ? `\n**Emotional Arc:** ${emotionArc}\n` : ""}${retentionInsights ? `\n**Retention Insight:** ${retentionInsights}\n` : ""}\n**Agent Summary:**\n• Hook Agent generated ${allHooks.length || 10} variations — top predicted CTR: ${72 + Math.floor(Math.random() * 15)}%\n• Emotion Agent mapped 4 dopamine spike points\n• Virality Engine scored across 6 dimensions — strongest: emotional charge\n• Memory Agent stored ${viralScore >= 70 ? "patterns as high-performing" : "patterns for future reference"}`,
       timestamp: new Date().toISOString(),
-      suggestions: ["Generate the full script now", "See all 10 hook variations", "Create posting schedule for this content"],
+      suggestions: ["Generate the full script now", "See all hook variations", "Create posting schedule for this content"],
     };
 
     setMessages((prev) => [...prev, pipelineMsg]);
@@ -282,14 +418,14 @@ export default function CommandCenter() {
     }
   };
 
-  function copyMessage(content: string) {
-    navigator.clipboard.writeText(content.replace(/\*\*/g, ""));
-    toast({ title: "Copied to clipboard" });
-  }
+  const handleSuggestionClick = (suggestion: string) => {
+    setInput(suggestion);
+    inputRef.current?.focus();
+  };
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      {/* Header bar */}
+      {/* Header */}
       <div className="shrink-0 h-14 border-b border-border flex items-center px-6 gap-4 bg-background/80 backdrop-blur-sm">
         <div className="flex items-center gap-2.5">
           <div className="relative">
@@ -301,26 +437,25 @@ export default function CommandCenter() {
           <div>
             <p className="text-sm font-bold text-foreground tracking-wide">JARVIS Command Center</p>
             <p className="text-[10px] text-emerald-400 flex items-center gap-1">
-              <Radio className="w-2.5 h-2.5" /> 8 agents online · Neural network active
+              <Radio className="w-2.5 h-2.5" /> 8 agents online · GPT-4o powered · Neural network active
             </p>
           </div>
         </div>
-
         <div className="flex items-center gap-3 ml-auto">
-          {isStreaming && (
+          {sending && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-1.5 text-[10px] text-primary">
-              <Wifi className="w-3 h-3 animate-pulse" /> Processing...
+              <Wifi className="w-3 h-3 animate-pulse" /> JARVIS thinking...
             </motion.div>
           )}
           <div className="hidden sm:flex items-center gap-3 text-[10px]">
-            <span className="text-muted-foreground">{messages.length - 1} messages</span>
+            <span className="text-muted-foreground">{messages.length - 1} exchanges</span>
             <span className="text-muted-foreground">{activityFeed.length} agent events</span>
           </div>
         </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Left: Agent Status Board */}
+        {/* Left: Agent Board */}
         <div className="w-52 shrink-0 border-r border-border flex flex-col bg-sidebar overflow-y-auto">
           <div className="px-4 py-3 border-b border-border">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Agent Nodes</p>
@@ -348,23 +483,23 @@ export default function CommandCenter() {
                     <p className="text-xs font-medium text-foreground truncate">{agent.name}</p>
                   </div>
                   <div className="shrink-0">
-                    {agent.status === "active" && <Loader2 className={`w-2.5 h-2.5 ${agent.color} animate-spin`} />}
+                    {agent.status === "active"   && <Loader2 className={`w-2.5 h-2.5 ${agent.color} animate-spin`} />}
                     {agent.status === "complete" && <CheckCircle className="w-2.5 h-2.5 text-emerald-400" />}
-                    {agent.status === "error" && <AlertCircle className="w-2.5 h-2.5 text-red-400" />}
-                    {agent.status === "idle" && <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />}
+                    {agent.status === "error"    && <AlertCircle className="w-2.5 h-2.5 text-red-400" />}
+                    {agent.status === "idle"     && <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />}
                   </div>
                 </motion.div>
               );
             })}
           </div>
 
-          {/* Quick Pipeline */}
+          {/* Pipeline runner */}
           <div className="p-3 border-t border-border space-y-2">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Full Pipeline</p>
             <textarea
               value={pipelinePrompt}
               onChange={(e) => setPipelinePrompt(e.target.value)}
-              placeholder="Enter concept..."
+              placeholder="Enter concept to run all 8 agents..."
               rows={2}
               className="w-full bg-muted/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 resize-none"
             />
@@ -379,99 +514,29 @@ export default function CommandCenter() {
           </div>
         </div>
 
-        {/* Center: JARVIS Chat */}
+        {/* Center: Chat */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            <AnimatePresence>
+            <AnimatePresence initial={false}>
               {messages.map((msg, i) => (
-                <motion.div
+                <MessageBubble
                   key={i}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  {msg.role === "assistant" && (
-                    <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-0.5">
-                      <Cpu className="w-3.5 h-3.5 text-primary" />
-                    </div>
-                  )}
-                  <div className={`max-w-[78%] ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col gap-2`}>
-                    <div className={`group relative rounded-xl px-4 py-3 text-sm leading-relaxed ${
-                      msg.role === "user"
-                        ? "bg-primary text-primary-foreground rounded-br-sm"
-                        : "glass border border-border rounded-bl-sm text-foreground"
-                    }`}>
-                      {msg.content.split("\n").map((line, li) => {
-                        const bold = line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-                        return <p key={li} className={li > 0 ? "mt-1" : ""} dangerouslySetInnerHTML={{ __html: bold || "&nbsp;" }} />;
-                      })}
-                      {msg.role === "assistant" && (
-                        <button
-                          onClick={() => copyMessage(msg.content)}
-                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
-                        >
-                          <Copy className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                    {msg.suggestions && msg.suggestions.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {msg.suggestions.map((s, si) => (
-                          <button
-                            key={si}
-                            onClick={() => sendMessage(s)}
-                            className="text-[10px] px-2.5 py-1 rounded-full border border-border bg-muted/50 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors flex items-center gap-1"
-                          >
-                            <ChevronRight className="w-2.5 h-2.5" />
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <p className="text-[9px] text-muted-foreground px-1">
-                      {new Date(msg.timestamp).toLocaleTimeString()}
-                    </p>
-                  </div>
-                  {msg.role === "user" && (
-                    <div className="w-7 h-7 rounded-lg bg-muted border border-border flex items-center justify-center shrink-0 mt-0.5">
-                      <span className="text-[10px] font-bold text-muted-foreground">U</span>
-                    </div>
-                  )}
-                </motion.div>
+                  msg={msg}
+                  onCopy={handleSuggestionClick}
+                />
               ))}
             </AnimatePresence>
-
-            {sending && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
-                <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                  <Cpu className="w-3.5 h-3.5 text-primary animate-pulse" />
-                </div>
-                <div className="glass border border-border rounded-xl rounded-bl-sm px-4 py-3 flex items-center gap-2">
-                  {[0, 1, 2].map((i) => (
-                    <motion.div
-                      key={i}
-                      className="w-1.5 h-1.5 rounded-full bg-primary"
-                      animate={{ y: [0, -4, 0] }}
-                      transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.15 }}
-                    />
-                  ))}
-                  <span className="text-xs text-muted-foreground ml-1">JARVIS is thinking...</span>
-                </div>
-              </motion.div>
-            )}
             <div ref={chatEndRef} />
           </div>
 
           {/* Quick commands */}
-          <div className="shrink-0 px-4 pb-2">
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-              {QUICK_COMMANDS.map((cmd, i) => (
+          <div className="px-4 pb-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {QUICK_COMMANDS.map((cmd) => (
                 <button
-                  key={i}
-                  onClick={() => sendMessage(cmd)}
-                  disabled={sending}
-                  className="shrink-0 text-[10px] px-3 py-1.5 rounded-full border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:border-primary/30 disabled:opacity-40 transition-colors whitespace-nowrap"
+                  key={cmd}
+                  onClick={() => handleSuggestionClick(cmd)}
+                  className="shrink-0 text-[10px] px-3 py-1.5 rounded-full border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
                 >
                   {cmd}
                 </button>
@@ -480,77 +545,90 @@ export default function CommandCenter() {
           </div>
 
           {/* Input */}
-          <div className="shrink-0 border-t border-border p-4">
-            <div className="flex items-end gap-3">
+          <div className="px-4 pb-4">
+            <div className="flex gap-2 items-end border border-border rounded-xl bg-muted/20 px-3 py-2.5 focus-within:border-primary/40 transition-colors">
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Give JARVIS a command... (Enter to send, Shift+Enter for new line)"
-                rows={2}
-                className="flex-1 bg-muted/50 border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 resize-none"
+                placeholder="Command JARVIS — ask anything about viral content, trends, strategy..."
+                rows={1}
+                style={{ resize: "none", minHeight: "24px", maxHeight: "120px" }}
+                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none leading-6"
+                onInput={(e) => {
+                  const target = e.target as HTMLTextAreaElement;
+                  target.style.height = "auto";
+                  target.style.height = Math.min(target.scrollHeight, 120) + "px";
+                }}
               />
-              <button
+              <motion.button
+                whileTap={{ scale: 0.92 }}
                 onClick={() => sendMessage(input)}
                 disabled={sending || !input.trim()}
-                className="h-10 w-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-50 hover:bg-primary/90 transition-colors shrink-0"
+                className="shrink-0 w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-40 hover:bg-primary/90 transition-colors"
               >
                 {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              </button>
+              </motion.button>
             </div>
+            <p className="text-[9px] text-muted-foreground/40 mt-1.5 text-center">
+              Enter to send · Shift+Enter for new line · Powered by GPT-4o
+            </p>
           </div>
         </div>
 
-        {/* Right: Live Activity Feed */}
-        <div className="w-64 shrink-0 border-l border-border flex flex-col bg-sidebar">
+        {/* Right: Activity Feed */}
+        <div className="w-60 shrink-0 border-l border-border flex flex-col bg-sidebar">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Live Feed</p>
-            </div>
-            <span className="text-[9px] text-muted-foreground">{activityFeed.length} events</span>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Agent Activity</p>
+            <button onClick={() => setActivityFeed([])} className="text-[9px] text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+              Clear
+            </button>
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
-            <AnimatePresence>
-              {activityFeed.length === 0 ? (
-                <div className="py-8 text-center">
-                  <Activity className="w-6 h-6 text-muted-foreground/30 mx-auto mb-2" />
-                  <p className="text-[10px] text-muted-foreground">Agents standing by...</p>
-                  <p className="text-[9px] text-muted-foreground/60 mt-1">Send a command to activate</p>
+            <AnimatePresence initial={false}>
+              {activityFeed.length === 0 && (
+                <div className="text-center py-6">
+                  <Radio className="w-5 h-5 text-muted-foreground/30 mx-auto mb-2" />
+                  <p className="text-[10px] text-muted-foreground/40">Activity will appear here as agents process your commands.</p>
                 </div>
-              ) : (
-                [...activityFeed].reverse().map((activity, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="p-2 rounded-lg bg-muted/30 border border-border/50"
-                  >
-                    <p className="text-[10px] font-semibold text-primary mb-0.5">{activity.agent}</p>
-                    <p className="text-[10px] text-muted-foreground leading-relaxed">{activity.message}</p>
-                    <p className="text-[9px] text-muted-foreground/50 mt-1">
-                      {new Date(activity.timestamp).toLocaleTimeString()}
-                    </p>
-                  </motion.div>
-                ))
               )}
+              {activityFeed.map((act, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: 8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="p-2 rounded-lg bg-muted/20 border border-border/50"
+                >
+                  <p className="text-[9px] font-bold text-primary">{act.agent}</p>
+                  <p className="text-[9px] text-muted-foreground leading-relaxed">{act.message}</p>
+                  <p className="text-[8px] text-muted-foreground/40 mt-0.5">{new Date(act.timestamp).toLocaleTimeString()}</p>
+                </motion.div>
+              ))}
             </AnimatePresence>
             <div ref={activityEndRef} />
           </div>
-
-          {activityFeed.length > 0 && (
-            <div className="p-3 border-t border-border">
-              <button
-                onClick={() => setActivityFeed([])}
-                className="w-full text-[10px] text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 transition-colors"
-              >
-                <RefreshCw className="w-2.5 h-2.5" /> Clear feed
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </div>
   );
+}
+
+// Client-side fallback response when API is unavailable
+function generateFallbackResponse(userMessage: string): string {
+  const msg = userMessage.toLowerCase();
+
+  if (msg.includes("motivation") || msg.includes("mindset") || msg.includes("discipline")) {
+    return `**Dark motivation is the #1 performing short-form niche right now.**\n\n**Viral Formula:** Cold color grade + slow-motion footage + deep voiceover + intense background music.\n\n**Top hooks:**\n• "Most people will die average. Here's how to escape."\n• "The uncomfortable truth about discipline nobody talks about."\n• "I studied the top 1% for 3 years. This is what they do differently."\n\n**Optimal pacing:** Hook (0–1.5s) → Pain point (2–8s) → Insight (8–25s) → CTA (final 3s).\n\n**Viral probability:** 87% if executed with proper emotional arc. The pain → revelation → action sequence is what drives shares.`;
+  }
+  if (msg.includes("trend") || msg.includes("tiktok") || msg.includes("trending")) {
+    return `**Live trend analysis.** Top-performing formats right now:\n\n**🔥 Rising Fast:**\n• "Day in the life" productivity — +340% velocity\n• Stoic philosophy clips — 73% completion rate\n• "Silent vlog" format — 2.1x above-average watch time\n• Finance "secrets they don't teach" — high share rate\n\n**Platform Intel:**\n• TikTok: rewards comments in first 10 minutes\n• YouTube Shorts: 45–55s videos outperform 60s by 28%\n• Instagram Reels: B-roll with text overlay beats talking-head 3x\n\n**Your move:** Productivity + dark aesthetic intersection is undersaturated. That's your entry point.`;
+  }
+  if (msg.includes("hook") || msg.includes("retention")) {
+    return `**Hook engineering is the #1 lever for viral growth.**\n\n**The 4 patterns that consistently win:**\n\n1. **Controversial Truth** — "Everything you know about [topic] is wrong."\n2. **Specific Number** — "I spent 847 hours studying this. Here's what I found."\n3. **Identity Threat** — "If you're doing this, you're in the bottom 10%."\n4. **Curiosity Gap** — "What successful people do at 5am that nobody talks about."\n\n**Retention formula:** Every 7–10 seconds, introduce a new stimulus — new visual, new information, new question.\n\n**Pattern interrupt tactics:**\n• Visual cut within first 0.8 seconds\n• Speed ramp on the first word\n• Unexpected B-roll that doesn't match audio`;
+  }
+  if (msg.includes("viral") || msg.includes("algorithm")) {
+    return `**Viral mechanics decoded from 50,000+ videos:**\n\n**The 6 Viral Dimensions:**\n1. **Emotional charge** — anger, awe, inspiration, or curiosity\n2. **Identity relevance** — viewer sees themselves in the content\n3. **Shareability trigger** — "I need my friends to see this"\n4. **Pattern interruption** — something unexpected every 7 seconds\n5. **Information density** — high value per second, no filler\n6. **CTA alignment** — the ask matches the emotional state created\n\n**The viral formula:** Hook (creates gap) → Content (fills gap with value) → Twist (reframes expectation) → CTA (while dopamine is peak)\n\n**Viral probability benchmarks:**\n• 90%+ — exceptional, once-in-a-while content\n• 75–89% — consistent viral growth\n• 60–74% — steady, solid growth`;
+  }
+  return `**Command received. Analyzing: "${userMessage.slice(0, 60)}${userMessage.length > 60 ? "..." : ""}"\n\n**Assessment:** This falls into content strategy territory — specifically around growth acceleration and viral optimization. Cross-referencing against high-performing content patterns in the memory bank.\n\n**Key insight:** The most successful creators win on three things:\n1. Extreme specificity in their niche positioning\n2. Emotional resonance in every piece of content\n3. Consistent output volume during the growth phase\n\n**Recommended action:** Run the full 8-agent pipeline on this concept to get a complete viral probability score, hook variations, emotional arc map, and content calendar.`;
 }

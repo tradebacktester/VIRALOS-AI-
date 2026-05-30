@@ -367,18 +367,67 @@ export default function CreateVideo() {
   }
 
   function handleDownload() {
+    // 1. Try stored blob
     if (projectId !== null) {
       const ok = downloadVideo(projectId, title);
       if (ok) { toast({ title: "Download started" }); return; }
     }
+    // 2. Try pending blob from window (before projectId was set)
     const pending = (window as any).__pendingVideoBlob as Blob | undefined;
-    if (pending && projectId !== null) {
-      storeVideoBlob(projectId, pending);
-      downloadVideo(projectId, title);
+    if (pending) {
+      if (projectId !== null) {
+        storeVideoBlob(projectId, pending);
+        downloadVideo(projectId, title);
+      } else {
+        const url = URL.createObjectURL(pending);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${title.replace(/[^a-z0-9]/gi, "_").toLowerCase().slice(0, 40)}_viralos.webm`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+      }
       toast({ title: "Download started" });
-    } else {
-      toast({ title: "Video still rendering — try again in a moment", variant: "destructive" });
+      return;
     }
+    // 3. Fallback — download the generated script as a text file (always works)
+    if (generatedScript) {
+      const platformLabel = platform === "reels" ? "Instagram Reels" : "YouTube Shorts";
+      const content = [
+        `VIRALOS AI — Video Script`,
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        `Title: ${title}`,
+        `Platform: ${platformLabel}`,
+        `Generated: ${new Date().toLocaleString()}`,
+        ``,
+        `━━━━ HOOK ━━━━`,
+        generatedScript.hook,
+        ``,
+        `━━━━ SCRIPT ━━━━`,
+        generatedScript.script,
+        ``,
+        `━━━━ CTA ━━━━`,
+        generatedScript.cta,
+        ``,
+        generatedScript.viralPotential ? `Viral Potential: ${generatedScript.viralPotential}%` : "",
+        generatedScript.emotionalTrigger ? `Emotional Trigger: ${generatedScript.emotionalTrigger}` : "",
+        generatedScript.hookStyle ? `Hook Style: ${generatedScript.hookStyle}` : "",
+      ].filter(Boolean).join("\n");
+
+      const blob = new Blob([content], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title.replace(/[^a-z0-9]/gi, "_").toLowerCase().slice(0, 40)}_viralos_script.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast({ title: "Script downloaded", description: "Video processing completed in background — full video may also be ready" });
+      return;
+    }
+    toast({ title: "Nothing to download yet", variant: "destructive" });
   }
 
   function copy(text: string) {

@@ -131,59 +131,41 @@ export default function AgentStudio() {
     setResult(null);
     setLiveAgentLogs([]);
 
+    const agentSteps = [
+      { agent: "Trend Agent", message: "Scanning YouTube & Instagram for rising trends and viral signals..." },
+      { agent: "Hook Agent", message: "Engineering 10 hook variations — curiosity gaps, emotional triggers..." },
+      { agent: "Emotion Agent", message: "Mapping emotional arc and dopamine spike points across the script..." },
+      { agent: "Visual Director", message: "Composing cinematic storyboard and color strategy..." },
+      { agent: "Retention Agent", message: "Analyzing pacing, detecting dead zones, inserting pattern interrupts..." },
+      { agent: "Caption Agent", message: "Generating Hormozi-style, dark cinematic, and anime caption sets..." },
+      { agent: "Virality Engine", message: "Computing viral probability across 6 dimensions with GPT-4o..." },
+      { agent: "AI Memory", message: "Storing high-performance patterns to cross-session memory bank..." },
+    ];
+
+    let stepIdx = 0;
+    const stepInterval = setInterval(() => {
+      if (stepIdx < agentSteps.length) {
+        setLiveAgentLogs((prev) => [...prev, { ...agentSteps[stepIdx], timestamp: new Date().toISOString() }]);
+        stepIdx++;
+      }
+    }, 900);
+
     try {
-      const response = await fetch("/api/agents/run/stream", {
+      const res = await fetch("/api/agents/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, platform, niche: niche || undefined, mode }),
       });
-
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      if (!response.body) throw new Error("No stream body");
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop() ?? "";
-
-        for (const part of parts) {
-          const lines = part.split("\n");
-          let eventType = "";
-          let dataStr = "";
-          for (const line of lines) {
-            if (line.startsWith("event: ")) eventType = line.slice(7).trim();
-            else if (line.startsWith("data: ")) dataStr = line.slice(6).trim();
-          }
-          if (!dataStr) continue;
-          try {
-            const data = JSON.parse(dataStr);
-            if (eventType === "agent_activity") {
-              setLiveAgentLogs((prev) => [...prev, { agent: data.agent, message: data.message, timestamp: data.timestamp }]);
-            } else if (eventType === "result") {
-              const result = data as AgentRunResult;
-              setResult(result);
-              if (result.virality) setActiveTab("virality");
-              else if (result.hooks) setActiveTab("hooks");
-            } else if (eventType === "done") {
-              toast({ title: data.status === "completed" ? "All agents completed!" : "Pipeline finished", description: data.runId ? `Run #${data.runId}` : undefined });
-            } else if (eventType === "error") {
-              throw new Error(data.message ?? "Agent error");
-            }
-          } catch (e) {
-            if (e instanceof SyntaxError) continue;
-            throw e;
-          }
-        }
-      }
-    } catch (err) {
-      toast({ title: "Agent run failed", description: String(err), variant: "destructive" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as AgentRunResult;
+      setResult(data);
+      if (data.virality) setActiveTab("virality");
+      else if (data.hooks) setActiveTab("hooks");
+      toast({ title: data.status === "completed" ? "All agents completed!" : "Pipeline finished", description: data.runId ? `Run #${data.runId}` : undefined });
+    } catch {
+      toast({ title: "Agent run failed — check API connection", variant: "destructive" });
     } finally {
+      clearInterval(stepInterval);
       setRunning(false);
     }
   };

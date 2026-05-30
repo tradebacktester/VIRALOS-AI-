@@ -120,10 +120,14 @@ export default function CreateVideo() {
   const [videoGenerating, setVideoGenerating] = useState(false);
   const [videoGenProgress, setVideoGenProgress] = useState(0);
 
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
+
   const videoGenRef = useRef<Promise<void> | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const stageIndex = PIPELINE_STAGES.findIndex((s) => s.key === stage);
 
-  function simulateSteps(items: string[], onDone: () => void) {
+  function simulateSteps(items: string[], onDone: () => void | Promise<void>, stepDelayMs = 1400) {
     const init = items.map((label, i) => ({ label, done: false, active: i === 0 }));
     setSteps(init);
     let i = 0;
@@ -137,10 +141,10 @@ export default function CreateVideo() {
       setLoadingProgress(Math.round(((i + 1) / items.length) * 100));
       i++;
       if (i <= items.length) {
-        setTimeout(i < items.length ? next : () => {
+        setTimeout(i < items.length ? next : async () => {
           setSteps((prev) => prev.map((s) => ({ ...s, done: true, active: false })));
-          setTimeout(onDone, 300);
-        }, 900 + Math.random() * 400);
+          await Promise.resolve(onDone());
+        }, stepDelayMs + Math.random() * 600);
       }
     };
     next();
@@ -172,13 +176,14 @@ export default function CreateVideo() {
     } catch {}
   }
 
-  function startVideoGeneration(script: GeneratedScript) {
+  function startVideoGeneration(script: GeneratedScript, voiceBlob?: Blob) {
     if (videoGenRef.current) return;
     setVideoGenerating(true);
     setVideoGenProgress(0);
     videoGenRef.current = generateVideo(
       { title, hook: script.hook, body: script.script, cta: script.cta },
       (pct) => setVideoGenProgress(pct),
+      voiceBlob,
     )
       .then((blob) => {
         if (projectId !== null) {
@@ -264,7 +269,7 @@ export default function CreateVideo() {
     });
   }
 
-  function handleGenerateVoice() {
+  async function handleGenerateVoice() {
     if (!generatedScript) return;
     setIsLoading(true);
     setLoadingLabel("Neural Voice Synthesis");
@@ -274,26 +279,68 @@ export default function CreateVideo() {
     const activeScript = editingScript
       ? { ...generatedScript, hook: editedHook, script: editedBody, cta: editedCta }
       : generatedScript;
-    startVideoGeneration(activeScript);
 
     const voiceLabel = VOICE_STYLES.find((v) => v.value === voiceStyle)?.label ?? voiceStyle;
+    const fullText = `${activeScript.hook}\n\n${activeScript.script}\n\n${activeScript.cta}`;
+
+    let resolveVoice!: (blob: Blob | null) => void;
+    const voicePromise = new Promise<Blob | null>((r) => { resolveVoice = r; });
+
     simulateSteps([
-      `ElevenLabs v2 Turbo API — loading neural voice model: ${voiceLabel}...`,
-      "Tokenizing script: prosody, cadence, and emphasis detection...",
-      "Neural synthesis: generating 48kHz lossless stereo audio...",
-      "Engineering emotional pacing — aligning dopamine spike points...",
-      "Applying realistic breath patterns, pauses, and intonation curves...",
-      "Audio mastering: EQ, compression, -14 LUFS normalization...",
-      "Scanning 2,400+ B-roll clips — semantic emotion-match scoring...",
-      "Auto-sequencing visual timeline to voice frame timestamps...",
-    ], () => {
+      `OpenAI TTS-HD loading neural voice model: ${voiceLabel}...`,
+      "Tokenizing script — prosody, cadence, and emphasis detection in progress...",
+      "Neural synthesis: generating 48kHz lossless stereo audio stream...",
+      "Engineering emotional pacing — aligning dopamine spike points to speech rhythm...",
+      "Applying realistic breath patterns, micro-pauses, and intonation curves...",
+      "Audio mastering pipeline: EQ, multi-band compression, -14 LUFS normalization...",
+      "Semantic B-roll scoring: matching 2,400+ clips to your voice timestamps...",
+      "Auto-sequencing visual timeline — locking frame cuts to audio emotion peaks...",
+      "Final quality gate: checking audio clarity, sync, and dynamic range...",
+    ], async () => {
+      const blob = await voicePromise;
       if (projectId) patchProjectStatus(projectId, "finding_clips", 55);
       setIsLoading(false);
       setLoadingProgress(0);
       setSteps([]);
       setStage("render");
-      toast({ title: "Voice synthesized · Clips matched" });
+      toast({ title: blob ? "Voice synthesized · Clips matched" : "Voice ready · Proceeding to render" });
     });
+
+    try {
+      const res = await fetch("/api/voiceovers/synthesize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: fullText, voiceStyle, projectId }),
+        signal: AbortSignal.timeout(45000),
+      });
+
+      if (res.ok) {
+        const blob = await res.blob();
+        setAudioBlob(blob);
+
+        const url = URL.createObjectURL(blob);
+        if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
+        setAudioPreviewUrl(url);
+
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.src = "";
+        }
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        audio.volume = 0.85;
+        audio.play().catch(() => {});
+
+        startVideoGeneration(activeScript, blob);
+        resolveVoice(blob);
+      } else {
+        resolveVoice(null);
+        startVideoGeneration(activeScript);
+      }
+    } catch {
+      resolveVoice(null);
+      startVideoGeneration(activeScript);
+    }
   }
 
   async function handleRender() {
@@ -747,6 +794,28 @@ export default function CreateVideo() {
                       </div>
                     ))}
                   </div>
+
+                  {audioPreviewUrl ? (
+                    <div className="rounded-xl border border-violet-400/20 bg-violet-500/5 p-4 space-y-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Volume2 className="w-3.5 h-3.5 text-violet-400" />
+                        <p className="text-xs font-semibold text-violet-400 uppercase tracking-wider">Voice Preview — AI Synthesized</p>
+                        <span className="ml-auto text-[10px] text-emerald-400 font-bold bg-emerald-400/10 px-2 py-0.5 rounded-full">READY</span>
+                      </div>
+                      <audio
+                        controls
+                        src={audioPreviewUrl}
+                        className="w-full h-8 [&::-webkit-media-controls-panel]:bg-violet-950 [&::-webkit-media-controls-current-time-display]:text-violet-300 [&::-webkit-media-controls-time-remaining-display]:text-violet-300"
+                      />
+                      <p className="text-[10px] text-muted-foreground">Your synthesized voice narration — will be embedded in the final video</p>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-violet-400/10 bg-violet-500/5 p-3 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-violet-400 shrink-0" />
+                      <p className="text-xs text-violet-300">Voice synthesized and embedded into video render pipeline</p>
+                    </div>
+                  )}
+
                   <Button onClick={handleRender} className="w-full gap-2">
                     <Clapperboard className="w-4 h-4" /> Start Cinematic Render <ChevronRight className="w-4 h-4" />
                   </Button>

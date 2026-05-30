@@ -3,6 +3,13 @@ export interface VideoScript {
   hook: string;
   body: string;
   cta: string;
+  videoStyle?: string;
+}
+
+export interface BrollClip {
+  url: string;
+  duration: number;
+  thumbnail?: string;
 }
 
 const FPS = 30;
@@ -13,225 +20,411 @@ function easeOut(t: number) {
   return 1 - Math.pow(1 - Math.min(Math.max(t, 0), 1), 3);
 }
 
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number, maxLines = 8): string[] {
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let line = "";
-  for (const word of words) {
-    const test = line ? `${line} ${word}` : word;
-    if (ctx.measureText(test).width > maxW && line) {
-      lines.push(line);
-      line = word;
-      if (lines.length >= maxLines) break;
-    } else {
-      line = test;
-    }
-  }
-  if (line && lines.length < maxLines) lines.push(line);
-  return lines;
+function easeInOut(t: number) {
+  t = Math.min(Math.max(t, 0), 1);
+  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 }
 
-function drawBackground(ctx: CanvasRenderingContext2D, sec: number) {
+// ─── Particle System ────────────────────────────────────────────────
+
+interface Particle {
+  x: number; y: number; r: number;
+  vx: number; vy: number; va: number;
+  alpha: number; color: string; type: string;
+}
+
+function spawnParticles(style: string, count: number): Particle[] {
+  const ps: Particle[] = [];
+  const configs: Record<string, { colors: string[]; type: string }> = {
+    dark_motivation: { colors: ["#FF2222", "#FF6600", "#FF4444", "#CC0000", "#FF8800"], type: "spark" },
+    luxury_cinematic: { colors: ["#FFD700", "#FFC200", "#FFE066", "#B8960C", "#FFFACD"], type: "orb" },
+    documentary:      { colors: ["#D4A574", "#C8956A", "#E8C9A0", "#A0784A", "#F0D8B4"], type: "dust" },
+    anime_edit:       { colors: ["#00FFFF", "#8800FF", "#FF00FF", "#0088FF", "#FFFFFF"], type: "energy" },
+  };
+  const cfg = configs[style] ?? configs["dark_motivation"];
+
+  for (let i = 0; i < count; i++) {
+    ps.push({
+      x: Math.random() * W,
+      y: H + Math.random() * H,
+      r: Math.random() * 2.5 + 0.5,
+      vx: (Math.random() - 0.5) * 1.2,
+      vy: -(Math.random() * 3 + 1),
+      va: (Math.random() - 0.5) * 0.02,
+      alpha: Math.random() * 0.7 + 0.3,
+      color: cfg.colors[Math.floor(Math.random() * cfg.colors.length)],
+      type: cfg.type,
+    });
+  }
+  return ps;
+}
+
+function updateParticles(ps: Particle[], dt: number): Particle[] {
+  for (const p of ps) {
+    p.x += p.vx * dt * FPS;
+    p.y += p.vy * dt * FPS;
+    p.alpha += p.va;
+    if (p.y < -20 || p.alpha <= 0) {
+      p.x = Math.random() * W;
+      p.y = H + 10;
+      p.alpha = Math.random() * 0.6 + 0.2;
+    }
+  }
+  return ps;
+}
+
+function drawParticles(ctx: CanvasRenderingContext2D, ps: Particle[], style: string) {
+  for (const p of ps) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(Math.max(p.alpha, 0), 1);
+
+    if (p.type === "orb") {
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
+      g.addColorStop(0, p.color);
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * 4, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (p.type === "energy") {
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+// ─── Animated Backgrounds ────────────────────────────────────────────
+
+function drawDarkMotivationBg(ctx: CanvasRenderingContext2D, sec: number) {
   const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, "#06090f");
-  bg.addColorStop(0.5, "#0a0d1c");
-  bg.addColorStop(1, "#040608");
+  bg.addColorStop(0, "#000000");
+  bg.addColorStop(0.4, "#0A0000");
+  bg.addColorStop(0.7, "#050000");
+  bg.addColorStop(1, "#000000");
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  ctx.globalAlpha = 0.55;
-  for (let i = 0; i < 18; i++) {
-    const seed = i * 137.508;
-    const px = (Math.sin(seed) * 0.5 + 0.5) * W;
-    const py = ((Math.cos(seed * 0.7) * 0.5 + 0.5) * H - sec * 14 * ((i % 3) + 0.5) + H * 10) % H;
-    const r = 0.5 + (i % 3) * 0.8;
-    const alpha = 0.08 + Math.sin(sec * 0.4 + seed) * 0.04;
+  // Pulsing red core glow
+  const pulse = 0.5 + Math.sin(sec * 1.5) * 0.15;
+  const glow = ctx.createRadialGradient(W / 2, H * 0.45, 0, W / 2, H * 0.45, W * 0.7 * pulse);
+  glow.addColorStop(0, "rgba(180,20,20,0.18)");
+  glow.addColorStop(0.5, "rgba(100,5,5,0.07)");
+  glow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawLuxuryCinematicBg(ctx: CanvasRenderingContext2D, sec: number) {
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, "#030510");
+  bg.addColorStop(0.5, "#06071A");
+  bg.addColorStop(1, "#020308");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Golden top light sweep
+  const sweep = (sec * 0.04) % 1;
+  const goldGlow = ctx.createLinearGradient(W * sweep - W * 0.3, 0, W * sweep + W * 0.3, H * 0.3);
+  goldGlow.addColorStop(0, "rgba(0,0,0,0)");
+  goldGlow.addColorStop(0.4, "rgba(180,140,0,0.06)");
+  goldGlow.addColorStop(0.6, "rgba(200,160,0,0.09)");
+  goldGlow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = goldGlow;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawDocumentaryBg(ctx: CanvasRenderingContext2D, sec: number) {
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#0D0A08");
+  bg.addColorStop(0.5, "#13100C");
+  bg.addColorStop(1, "#0A0806");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Warm center highlight
+  const warm = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * 0.9);
+  warm.addColorStop(0, "rgba(80,55,30,0.12)");
+  warm.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = warm;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawAnimeEditBg(ctx: CanvasRenderingContext2D, sec: number) {
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#000000");
+  bg.addColorStop(0.5, "#03001A");
+  bg.addColorStop(1, "#000000");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Speed lines radiating from center
+  const cx = W / 2, cy = H * 0.4;
+  const numLines = 24;
+  const rotOffset = sec * 0.1;
+  ctx.save();
+  for (let i = 0; i < numLines; i++) {
+    const angle = ((i / numLines) * Math.PI * 2) + rotOffset;
+    const spread = 0.04;
+    const dist = 40 + Math.sin(sec * 3 + i) * 10;
     ctx.beginPath();
-    ctx.arc(px, py, r, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(79, 141, 255, ${alpha})`;
+    ctx.moveTo(cx + Math.cos(angle - spread) * dist, cy + Math.sin(angle - spread) * dist);
+    ctx.lineTo(cx + Math.cos(angle) * W, cy + Math.sin(angle) * W * 2);
+    ctx.lineTo(cx + Math.cos(angle + spread) * dist, cy + Math.sin(angle + spread) * dist);
+    ctx.closePath();
+    const alpha = 0.03 + Math.sin(sec * 2 + i * 0.5) * 0.01;
+    ctx.fillStyle = i % 3 === 0 ? `rgba(0,200,255,${alpha})` : `rgba(150,0,255,${alpha})`;
     ctx.fill();
   }
-  ctx.globalAlpha = 1;
+  ctx.restore();
 
-  const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.15, W / 2, H / 2, H * 0.8);
+  // Aura core
+  const aura = ctx.createRadialGradient(cx, cy, 0, cx, cy, 150 + Math.sin(sec * 2) * 20);
+  aura.addColorStop(0, "rgba(100,0,255,0.18)");
+  aura.addColorStop(0.5, "rgba(0,100,255,0.06)");
+  aura.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = aura;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawAnimatedBackground(ctx: CanvasRenderingContext2D, sec: number, style: string) {
+  switch (style) {
+    case "luxury_cinematic": drawLuxuryCinematicBg(ctx, sec); break;
+    case "documentary":      drawDocumentaryBg(ctx, sec); break;
+    case "anime_edit":       drawAnimeEditBg(ctx, sec); break;
+    default:                 drawDarkMotivationBg(ctx, sec);
+  }
+}
+
+// ─── Cinematic Overlays ──────────────────────────────────────────────
+
+function drawColorGrade(ctx: CanvasRenderingContext2D, style: string, opacity = 0.45) {
+  const grades: Record<string, { color: string; blend: string }> = {
+    dark_motivation: { color: "rgba(20,0,0,1)", blend: "multiply" },
+    luxury_cinematic: { color: "rgba(5,8,25,1)", blend: "multiply" },
+    documentary: { color: "rgba(20,12,5,1)", blend: "multiply" },
+    anime_edit: { color: "rgba(0,0,15,1)", blend: "multiply" },
+  };
+  const grade = grades[style] ?? grades["dark_motivation"];
+  ctx.save();
+  ctx.globalCompositeOperation = grade.blend as GlobalCompositeOperation;
+  ctx.globalAlpha = opacity;
+  ctx.fillStyle = grade.color;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+function drawVignette(ctx: CanvasRenderingContext2D) {
+  const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.18, W / 2, H / 2, H * 0.85);
   vig.addColorStop(0, "rgba(0,0,0,0)");
-  vig.addColorStop(1, "rgba(0,0,0,0.72)");
+  vig.addColorStop(0.6, "rgba(0,0,0,0.2)");
+  vig.addColorStop(1, "rgba(0,0,0,0.82)");
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, W, H);
 }
 
-function drawHookScene(ctx: CanvasRenderingContext2D, localT: number, hook: string) {
-  ctx.save();
-  const t = Math.min(localT, 1);
-
-  const lineW = 56 * easeOut(t * 1.5);
-  ctx.fillStyle = "#4F8DFF";
-  ctx.globalAlpha = easeOut(t * 2);
-  ctx.fillRect(W / 2 - lineW / 2, H / 2 - 100, lineW, 3);
-  ctx.globalAlpha = 1;
-
-  ctx.font = "bold 42px system-ui, sans-serif";
-  ctx.textAlign = "center";
-  const lines = wrapText(ctx, hook, W - 80, 5);
-  const lineH = 56;
-  const totalH = lines.length * lineH;
-  const startY = H / 2 - totalH / 2 + 20;
-
-  lines.forEach((line, i) => {
-    const lineT = easeOut(Math.max(0, t * (lines.length + 1) - i));
-    const dy = (1 - lineT) * 20;
-    ctx.globalAlpha = lineT;
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillText(line, W / 2, startY + i * lineH + dy);
-  });
-
-  ctx.restore();
+function drawFilmGrain(ctx: CanvasRenderingContext2D, sec: number, strength = 0.04) {
+  const imgData = ctx.createImageData(W, H);
+  const seed = Math.floor(sec * FPS);
+  for (let i = 0; i < imgData.data.length; i += 4) {
+    const n = ((i * 1103515245 + seed * 12345) & 0x7fffffff) % 255;
+    const v = n * strength;
+    imgData.data[i] = v; imgData.data[i + 1] = v; imgData.data[i + 2] = v;
+    imgData.data[i + 3] = 18;
+  }
+  ctx.putImageData(imgData, 0, 0);
 }
 
-function drawBodyScene(ctx: CanvasRenderingContext2D, localT: number, title: string, body: string) {
-  const t = Math.min(localT, 1);
-  ctx.save();
+// ─── Word-by-Word Text Animation ─────────────────────────────────────
 
-  ctx.globalAlpha = easeOut(t * 5);
-  ctx.font = "bold 20px system-ui, sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillStyle = "#4F8DFF";
-  ctx.fillText(title.toUpperCase().slice(0, 30), W / 2, 80);
-
-  ctx.fillStyle = "rgba(79,141,255,0.4)";
-  ctx.fillRect(W / 2 - 30, 92, 60, 1.5);
-  ctx.globalAlpha = 1;
-
-  ctx.font = "28px system-ui, sans-serif";
-  const lines = wrapText(ctx, body, W - 80, 12);
-  const lineH = 44;
-  const totalH = lines.length * lineH;
-  const startY = H / 2 - totalH / 2 + 10;
-
-  lines.forEach((line, i) => {
-    const lineDelay = i / lines.length;
-    const lineT = easeOut(Math.max(0, t / 0.85 - lineDelay * 0.9));
-    const dy = (1 - lineT) * 14;
-    ctx.globalAlpha = lineT;
-    ctx.fillStyle = i % 4 === 0 ? "#FFFFFF" : "#CBD5E1";
-    ctx.fillText(line, W / 2, startY + i * lineH + dy);
-  });
-
-  ctx.restore();
+function buildPhrases(text: string, maxWords = 3): string[] {
+  const words = text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  const phrases: string[] = [];
+  for (let i = 0; i < words.length; i += maxWords) {
+    phrases.push(words.slice(i, i + maxWords).join(" "));
+  }
+  return phrases;
 }
 
-function drawCTAScene(ctx: CanvasRenderingContext2D, localT: number, sec: number, cta: string) {
-  const t = Math.min(localT, 1);
-  ctx.save();
-
-  const e = easeOut(t);
-  ctx.globalAlpha = e;
-
-  const ringScale = 0.85 + Math.sin(sec * 3) * 0.04;
-  ctx.beginPath();
-  ctx.arc(W / 2, H / 2 - 80, 44 * ringScale, 0, Math.PI * 2);
-  ctx.strokeStyle = "rgba(79,141,255,0.6)";
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  ctx.font = "52px system-ui, sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillStyle = "#FFFFFF";
-  ctx.fillText("↑", W / 2, H / 2 - 50);
-
-  ctx.font = "bold 30px system-ui, sans-serif";
-  ctx.fillStyle = "#FFFFFF";
-  const lines = wrapText(ctx, cta, W - 80, 4);
-  lines.forEach((line, i) => {
-    ctx.fillText(line, W / 2, H / 2 + 30 + i * 44);
-  });
-
-  ctx.restore();
+function buildScript(script: VideoScript): { allText: string; phrases: string[]; hookEnd: number; bodyEnd: number } {
+  const hookPhrases = buildPhrases(script.hook, 3);
+  const bodyPhrases = buildPhrases(script.body, 4);
+  const ctaPhrases = buildPhrases(script.cta, 3);
+  const phrases = [...hookPhrases, ...bodyPhrases, ...ctaPhrases];
+  const allText = [script.hook, script.body, script.cta].join(" ");
+  return {
+    allText,
+    phrases,
+    hookEnd: hookPhrases.length,
+    bodyEnd: hookPhrases.length + bodyPhrases.length,
+  };
 }
 
-function drawOutroScene(ctx: CanvasRenderingContext2D) {
-  ctx.save();
-
-  const rx = W / 2 - 28, ry = H / 2 - 68, rw = 56, rh = 56, rr = 12;
-  ctx.fillStyle = "#4F8DFF";
-  ctx.beginPath();
-  ctx.moveTo(rx + rr, ry);
-  ctx.lineTo(rx + rw - rr, ry);
-  ctx.arcTo(rx + rw, ry, rx + rw, ry + rr, rr);
-  ctx.lineTo(rx + rw, ry + rh - rr);
-  ctx.arcTo(rx + rw, ry + rh, rx + rw - rr, ry + rh, rr);
-  ctx.lineTo(rx + rr, ry + rh);
-  ctx.arcTo(rx, ry + rh, rx, ry + rh - rr, rr);
-  ctx.lineTo(rx, ry + rr);
-  ctx.arcTo(rx, ry, rx + rr, ry, rr);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.font = "bold 26px system-ui, sans-serif";
-  ctx.fillStyle = "#FFFFFF";
-  ctx.textAlign = "center";
-  ctx.fillText("⚡", W / 2, H / 2 - 30);
-
-  ctx.font = "bold 38px system-ui, sans-serif";
-  ctx.fillStyle = "#FFFFFF";
-  ctx.fillText("VIRALOS AI", W / 2, H / 2 + 20);
-
-  ctx.font = "20px system-ui, sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.45)";
-  ctx.fillText("Generated by AI · Go viral.", W / 2, H / 2 + 58);
-
-  ctx.restore();
+function getAccentColor(style: string): string {
+  return { dark_motivation: "#FF3333", luxury_cinematic: "#FFD700", documentary: "#E8C9A0", anime_edit: "#00FFFF" }[style] ?? "#4F8DFF";
 }
 
-function drawWatermark(ctx: CanvasRenderingContext2D) {
-  ctx.save();
-  ctx.font = "bold 16px system-ui, sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.12)";
-  ctx.textAlign = "right";
-  ctx.fillText("VIRALOS AI", W - 22, H - 26);
-  ctx.restore();
-}
-
-function drawFrame(
+function drawPhraseText(
   ctx: CanvasRenderingContext2D,
-  sec: number,
-  script: VideoScript,
-  totalSec: number
+  phrase: string,
+  progress: number, // 0..1 within this phrase's lifetime
+  style: string,
+  isHook: boolean,
+  isCTA: boolean,
 ) {
-  const hookEnd = totalSec * 0.15;
-  const bodyEnd = totalSec * 0.82;
-  const ctaEnd = totalSec * 0.95;
+  const appear = easeOut(Math.min(progress * 5, 1));
+  const fade = progress > 0.75 ? 1 - easeInOut((progress - 0.75) / 0.25) : 1;
+  const alpha = appear * fade;
+  if (alpha <= 0.01) return;
 
-  drawBackground(ctx, sec);
+  ctx.save();
+  ctx.globalAlpha = alpha;
 
-  if (sec < hookEnd) {
-    drawHookScene(ctx, sec / hookEnd, script.hook);
-  } else if (sec < bodyEnd) {
-    drawBodyScene(ctx, (sec - hookEnd) / (bodyEnd - hookEnd), script.title, script.body);
-  } else if (sec < ctaEnd) {
-    drawCTAScene(ctx, (sec - bodyEnd) / (ctaEnd - bodyEnd), sec, script.cta);
-  } else {
-    drawOutroScene(ctx);
+  const fontSize = isHook ? 68 : isCTA ? 52 : 58;
+  const fontWeight = "900";
+  ctx.font = `${fontWeight} ${fontSize}px system-ui, -apple-system, sans-serif`;
+  ctx.textAlign = "center";
+
+  // Scale animation
+  const scale = 0.85 + easeOut(Math.min(progress * 6, 1)) * 0.15;
+  ctx.translate(W / 2, H / 2);
+  ctx.scale(scale, scale);
+  ctx.translate(-W / 2, -H / 2);
+
+  const words = phrase.split(" ");
+  const accentColor = getAccentColor(style);
+  const lineH = fontSize * 1.25;
+  const maxW = W - 80;
+
+  // Measure total height
+  let lines: string[][] = [[]];
+  for (const word of words) {
+    const candidate = [...lines[lines.length - 1], word];
+    ctx.font = `${fontWeight} ${fontSize}px system-ui, -apple-system, sans-serif`;
+    if (ctx.measureText(candidate.join(" ")).width > maxW && lines[lines.length - 1].length > 0) {
+      lines.push([word]);
+    } else {
+      lines[lines.length - 1] = candidate;
+    }
   }
 
-  drawWatermark(ctx);
+  const totalH = lines.length * lineH;
+  const baseY = H / 2 - totalH / 2 + fontSize * 0.8;
+
+  lines.forEach((lineWords, lineIdx) => {
+    const lineY = baseY + lineIdx * lineH;
+    const lineText = lineWords.join(" ");
+
+    // Shadow/glow
+    ctx.shadowColor = accentColor;
+    ctx.shadowBlur = isHook ? 30 : 15;
+
+    // Each word colored alternately
+    let xOffset = 0;
+    const wordWidths = lineWords.map((w) => ctx.measureText(w + " ").width);
+    const totalLineW = wordWidths.reduce((a, b) => a + b, 0);
+    let curX = W / 2 - totalLineW / 2;
+
+    lineWords.forEach((word, wi) => {
+      const isAccent = (lineIdx + wi) % 3 === 0;
+      ctx.fillStyle = isAccent ? accentColor : "#FFFFFF";
+      ctx.shadowColor = isAccent ? accentColor : "rgba(0,0,0,0.8)";
+      ctx.shadowBlur = isAccent ? 20 : 10;
+      ctx.fillText(word, curX + wordWidths[wi] / 2 - ctx.measureText(" ").width / 2, lineY + xOffset);
+      curX += wordWidths[wi];
+    });
+  });
+
+  ctx.restore();
 }
 
-export function generateVideo(
+// ─── Video Clip Compositor ───────────────────────────────────────────
+
+async function loadVideoElement(url: string): Promise<HTMLVideoElement | null> {
+  return new Promise((resolve) => {
+    const vid = document.createElement("video");
+    vid.crossOrigin = "anonymous";
+    vid.muted = true;
+    vid.playsInline = true;
+    vid.preload = "auto";
+
+    const timeout = setTimeout(() => resolve(null), 8000);
+
+    vid.addEventListener("canplay", () => {
+      clearTimeout(timeout);
+      resolve(vid);
+    }, { once: true });
+
+    vid.addEventListener("error", () => {
+      clearTimeout(timeout);
+      resolve(null);
+    }, { once: true });
+
+    vid.src = url;
+    vid.load();
+  });
+}
+
+function drawVideoToCanvas(
+  ctx: CanvasRenderingContext2D,
+  vid: HTMLVideoElement,
+) {
+  if (vid.readyState < 2) return;
+  const vw = vid.videoWidth || W;
+  const vh = vid.videoHeight || H;
+
+  // Cover mode — fill canvas maintaining aspect ratio
+  const scale = Math.max(W / vw, H / vh);
+  const sw = vw * scale;
+  const sh = vh * scale;
+  const sx = (W - sw) / 2;
+  const sy = (H - sh) / 2;
+
+  ctx.drawImage(vid, sx, sy, sw, sh);
+}
+
+// ─── Main Generator ───────────────────────────────────────────────────
+
+export async function generateVideo(
   script: VideoScript,
   onProgress?: (pct: number) => void,
-  audioBlob?: Blob
+  audioBlob?: Blob,
+  brollClips?: BrollClip[],
 ): Promise<Blob> {
+  const style = script.videoStyle ?? "dark_motivation";
+
+  // Load B-roll video elements
+  const loadedClips: { el: HTMLVideoElement; duration: number }[] = [];
+  if (brollClips && brollClips.length > 0) {
+    for (const clip of brollClips) {
+      const el = await loadVideoElement(clip.url);
+      if (el) {
+        loadedClips.push({ el, duration: Math.min(clip.duration, 15) });
+      }
+    }
+  }
+
+  // Build phrase timing
+  const scriptData = buildScript(script);
+  const particles = spawnParticles(style, 120);
+
   return new Promise(async (resolve, reject) => {
     const canvas = document.createElement("canvas");
     canvas.width = W;
     canvas.height = H;
     const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      reject(new Error("Canvas 2D context unavailable"));
-      return;
-    }
+    if (!ctx) { reject(new Error("Canvas unavailable")); return; }
 
+    // Determine total duration from audio
     let totalSeconds = 45;
     let audioCtx: AudioContext | null = null;
     let audioSource: AudioBufferSourceNode | null = null;
@@ -239,13 +432,13 @@ export function generateVideo(
     if (audioBlob) {
       try {
         audioCtx = new AudioContext();
-        const arrayBuffer = await audioBlob.arrayBuffer();
-        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-        totalSeconds = Math.min(audioBuffer.duration + 2, 120);
+        const arrayBuf = await audioBlob.arrayBuffer();
+        const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
+        totalSeconds = Math.min(audioBuf.duration + 2, 120);
 
         const dest = audioCtx.createMediaStreamDestination();
         audioSource = audioCtx.createBufferSource();
-        audioSource.buffer = audioBuffer;
+        audioSource.buffer = audioBuf;
         audioSource.connect(dest);
 
         const canvasStream = canvas.captureStream(FPS);
@@ -253,91 +446,216 @@ export function generateVideo(
           canvasStream.addTrack(track);
         }
 
-        const totalFrames = Math.round(FPS * totalSeconds);
-        const mimeType = pickMimeType();
+        const recorder = buildRecorder(canvasStream);
+        if (!recorder) { audioCtx.close(); reject(new Error("MediaRecorder unsupported")); return; }
+
         const chunks: BlobPart[] = [];
-
-        let recorder: MediaRecorder;
-        try {
-          recorder = new MediaRecorder(canvasStream, { mimeType, videoBitsPerSecond: 3_000_000 });
-        } catch {
-          audioCtx.close();
-          reject(new Error("MediaRecorder not supported"));
-          return;
-        }
-
         recorder.ondataavailable = (e) => { if (e.data?.size > 0) chunks.push(e.data); };
-        recorder.onstop = () => {
-          audioCtx!.close();
-          resolve(new Blob(chunks, { type: mimeType }));
-        };
+        recorder.onstop = () => { audioCtx!.close(); resolve(new Blob(chunks, { type: recorder.mimeType })); };
         recorder.onerror = (e) => { audioCtx!.close(); reject(e); };
+
+        // Start clip playlist
+        startClipPlaylist(loadedClips);
 
         recorder.start(250);
         audioSource.start(0);
 
-        let frame = 0;
-        const msPerFrame = 1000 / FPS;
-        const tick = () => {
-          if (frame >= totalFrames) {
-            recorder.stop();
-            onProgress?.(100);
-            return;
-          }
-          drawFrame(ctx, frame / FPS, script, totalSeconds);
-          onProgress?.(Math.round((frame / totalFrames) * 100));
-          frame++;
-          setTimeout(tick, msPerFrame);
-        };
-        tick();
+        runFrameLoop(ctx, 0, totalSeconds, particles, loadedClips, script, style, scriptData, recorder, onProgress);
         return;
       } catch (e) {
-        console.warn("Audio setup failed, falling back to silent video:", e);
+        console.warn("Audio setup failed, silent fallback:", e);
         audioCtx?.close().catch(() => {});
         audioCtx = null;
-        audioSource = null;
       }
     }
 
+    // Silent path
     const silentDuration = 45;
-    const totalFrames = FPS * silentDuration;
-    const mimeType = pickMimeType();
     const stream = canvas.captureStream(FPS);
+    const recorder = buildRecorder(stream);
+    if (!recorder) { reject(new Error("MediaRecorder unsupported")); return; }
+
     const chunks: BlobPart[] = [];
-    let recorder: MediaRecorder;
-
-    try {
-      recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2_500_000 });
-    } catch {
-      reject(new Error("MediaRecorder not supported in this browser"));
-      return;
-    }
-
     recorder.ondataavailable = (e) => { if (e.data?.size > 0) chunks.push(e.data); };
-    recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
+    recorder.onstop = () => resolve(new Blob(chunks, { type: recorder.mimeType }));
     recorder.onerror = (e) => reject(e);
 
+    startClipPlaylist(loadedClips);
     recorder.start(250);
-
-    let frame = 0;
-    const msPerFrame = 1000 / FPS;
-    const tick = () => {
-      if (frame >= totalFrames) {
-        recorder.stop();
-        onProgress?.(100);
-        return;
-      }
-      drawFrame(ctx, frame / FPS, script, silentDuration);
-      onProgress?.(Math.round((frame / totalFrames) * 100));
-      frame++;
-      setTimeout(tick, msPerFrame);
-    };
-    tick();
+    runFrameLoop(ctx, 0, silentDuration, particles, loadedClips, script, style, scriptData, recorder, onProgress);
   });
 }
 
-function pickMimeType(): string {
-  if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) return "video/webm;codecs=vp9";
-  if (MediaRecorder.isTypeSupported("video/webm")) return "video/webm";
-  return "video/mp4";
+function buildRecorder(stream: MediaStream): MediaRecorder | null {
+  const types = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"];
+  for (const t of types) {
+    if (MediaRecorder.isTypeSupported(t)) {
+      try {
+        return new MediaRecorder(stream, { mimeType: t, videoBitsPerSecond: 4_000_000 });
+      } catch {}
+    }
+  }
+  try { return new MediaRecorder(stream); } catch { return null; }
+}
+
+function startClipPlaylist(clips: { el: HTMLVideoElement; duration: number }[]) {
+  if (clips.length === 0) return;
+  let idx = 0;
+
+  const playNext = () => {
+    if (idx >= clips.length) { idx = 0; } // loop
+    const { el, duration } = clips[idx];
+    el.currentTime = 0;
+    el.play().catch(() => {});
+
+    const timeout = duration * 1000 - 200;
+    setTimeout(() => {
+      idx++;
+      playNext();
+    }, Math.max(timeout, 500));
+  };
+
+  playNext();
+}
+
+function getCurrentClip(clips: { el: HTMLVideoElement; duration: number }[], sec: number): HTMLVideoElement | null {
+  let elapsed = 0;
+  for (const clip of clips) {
+    if (sec < elapsed + clip.duration) return clip.el;
+    elapsed += clip.duration;
+  }
+  if (clips.length > 0) return clips[clips.length - 1].el;
+  return null;
+}
+
+function runFrameLoop(
+  ctx: CanvasRenderingContext2D,
+  frame: number,
+  totalSeconds: number,
+  particles: Particle[],
+  clips: { el: HTMLVideoElement; duration: number }[],
+  script: VideoScript,
+  style: string,
+  scriptData: ReturnType<typeof buildScript>,
+  recorder: MediaRecorder,
+  onProgress?: (pct: number) => void,
+) {
+  const totalFrames = Math.round(FPS * totalSeconds);
+  const dt = 1 / FPS;
+
+  const tick = () => {
+    if (frame >= totalFrames) {
+      recorder.stop();
+      onProgress?.(100);
+      return;
+    }
+
+    const sec = frame / FPS;
+    onProgress?.(Math.round((frame / totalFrames) * 100));
+
+    // ── Background ──
+    const clipEl = getCurrentClip(clips, sec);
+    if (clipEl && clipEl.readyState >= 2) {
+      drawVideoToCanvas(ctx, clipEl);
+
+      // Color grade over real footage
+      ctx.save();
+      ctx.globalCompositeOperation = "multiply";
+      ctx.globalAlpha = 0.55;
+      const styleColor: Record<string, string> = {
+        dark_motivation: "rgba(0,0,0,1)",
+        luxury_cinematic: "rgba(5,3,15,1)",
+        documentary: "rgba(10,6,2,1)",
+        anime_edit: "rgba(0,0,10,1)",
+      };
+      ctx.fillStyle = styleColor[style] ?? "rgba(0,0,0,1)";
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+
+      // Tint overlay
+      const tints: Record<string, string> = {
+        dark_motivation: "rgba(60,0,0,0.15)",
+        luxury_cinematic: "rgba(10,8,2,0.12)",
+        documentary: "rgba(20,12,0,0.10)",
+        anime_edit: "rgba(0,5,25,0.18)",
+      };
+      ctx.save();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = tints[style] ?? "rgba(0,0,0,0.1)";
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    } else {
+      // Canvas-only animated background
+      drawAnimatedBackground(ctx, sec, style);
+      updateParticles(particles, dt);
+      drawParticles(ctx, particles, style);
+    }
+
+    // ── Vignette ──
+    drawVignette(ctx);
+
+    // ── Film grain (documentary gets heavier grain) ──
+    if (style === "documentary" || style === "dark_motivation") {
+      drawFilmGrain(ctx, sec, style === "documentary" ? 0.06 : 0.035);
+    }
+
+    // ── Word-by-word text ──
+    const phrases = scriptData.phrases;
+    if (phrases.length > 0) {
+      // Distribute phrases evenly across 90% of total duration
+      const textDuration = totalSeconds * 0.92;
+      const secPerPhrase = textDuration / phrases.length;
+      const phraseIdx = Math.min(Math.floor(sec / secPerPhrase), phrases.length - 1);
+      const phraseProgress = (sec % secPerPhrase) / secPerPhrase;
+      const phrase = phrases[phraseIdx];
+      const isHook = phraseIdx < scriptData.hookEnd;
+      const isCTA = phraseIdx >= scriptData.bodyEnd;
+
+      if (sec < textDuration) {
+        drawPhraseText(ctx, phrase, phraseProgress, style, isHook, isCTA);
+      }
+    }
+
+    // ── Bottom caption bar ──
+    const captionFontSize = 18;
+    ctx.save();
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillRect(0, H - 56, W, 56);
+    ctx.globalAlpha = 0.9;
+    ctx.font = `bold ${captionFontSize}px system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText(script.title.toUpperCase().slice(0, 36), W / 2, H - 30);
+    ctx.restore();
+
+    // ── Watermark ──
+    ctx.save();
+    ctx.font = "bold 14px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.14)";
+    ctx.textAlign = "right";
+    ctx.fillText("VIRALOS AI", W - 18, 30);
+    ctx.restore();
+
+    // ── Scene transition flashes at key moments ──
+    const hookEndSec = totalSeconds * 0.15;
+    const bodyEndSec = totalSeconds * 0.82;
+    const transitionWidth = 0.25;
+    for (const moment of [hookEndSec, bodyEndSec]) {
+      const dist = Math.abs(sec - moment);
+      if (dist < transitionWidth) {
+        const fade = 1 - dist / transitionWidth;
+        ctx.save();
+        ctx.globalAlpha = fade * 0.35;
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillRect(0, 0, W, H);
+        ctx.restore();
+      }
+    }
+
+    frame++;
+    setTimeout(tick, 1000 / FPS);
+  };
+
+  tick();
 }

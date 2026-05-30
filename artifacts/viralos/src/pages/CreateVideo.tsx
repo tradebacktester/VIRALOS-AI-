@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { generateVideo } from "@/lib/video-renderer";
+import { generateVideo, type BrollClip } from "@/lib/video-renderer";
 import { storeVideoBlob, downloadVideo } from "@/lib/video-store";
 import {
   Wand2, FileText, Mic, Clapperboard, Download, CheckCircle,
@@ -122,9 +122,12 @@ export default function CreateVideo() {
 
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
+  const [brollClips, setBrollClips] = useState<BrollClip[]>([]);
+  const [brollLoading, setBrollLoading] = useState(false);
 
   const videoGenRef = useRef<Promise<void> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const brollRef = useRef<BrollClip[]>([]);
   const stageIndex = PIPELINE_STAGES.findIndex((s) => s.key === stage);
 
   function simulateSteps(items: string[], onDone: () => void | Promise<void>, stepDelayMs = 1400) {
@@ -176,14 +179,63 @@ export default function CreateVideo() {
     } catch {}
   }
 
-  function startVideoGeneration(script: GeneratedScript, voiceBlob?: Blob) {
+  async function fetchBrollClips(script: GeneratedScript): Promise<BrollClip[]> {
+    try {
+      setBrollLoading(true);
+      const kwRes = await fetch("/api/broll/keywords", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hook: script.hook,
+          script: script.script,
+          cta: script.cta,
+          videoStyle,
+          niche: prompt,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!kwRes.ok) return [];
+      const { queries } = await kwRes.json() as { queries: string[] };
+      if (!queries?.length) return [];
+
+      const clips: BrollClip[] = [];
+      const querySlice = queries.slice(0, 4);
+
+      await Promise.allSettled(
+        querySlice.map(async (q) => {
+          try {
+            const r = await fetch(`/api/broll/search?query=${encodeURIComponent(q)}&per_page=2`, {
+              signal: AbortSignal.timeout(10000),
+            });
+            if (!r.ok) return;
+            const { clips: found, noKey } = await r.json() as { clips: BrollClip[]; noKey?: boolean };
+            if (!noKey && found?.length) clips.push(...found.slice(0, 2));
+          } catch {}
+        }),
+      );
+
+      const unique = clips.filter((c, i) => clips.findIndex((x) => x.url === c.url) === i);
+      setBrollClips(unique);
+      brollRef.current = unique;
+      return unique;
+    } catch {
+      return [];
+    } finally {
+      setBrollLoading(false);
+    }
+  }
+
+  function startVideoGeneration(script: GeneratedScript, voiceBlob?: Blob, clips?: BrollClip[]) {
     if (videoGenRef.current) return;
     setVideoGenerating(true);
     setVideoGenProgress(0);
+    const usedClips = clips ?? brollRef.current;
     videoGenRef.current = generateVideo(
-      { title, hook: script.hook, body: script.script, cta: script.cta },
+      { title, hook: script.hook, body: script.script, cta: script.cta, videoStyle },
       (pct) => setVideoGenProgress(pct),
       voiceBlob,
+      usedClips.length > 0 ? usedClips : undefined,
     )
       .then((blob) => {
         if (projectId !== null) {
@@ -306,6 +358,9 @@ export default function CreateVideo() {
       toast({ title: blob ? "Voice synthesized · Clips matched" : "Voice ready · Proceeding to render" });
     });
 
+    // Kick off B-roll search in parallel with TTS (both are async)
+    const brollPromise = fetchBrollClips(activeScript);
+
     try {
       const res = await fetch("/api/voiceovers/synthesize", {
         method: "POST",
@@ -331,15 +386,18 @@ export default function CreateVideo() {
         audio.volume = 0.85;
         audio.play().catch(() => {});
 
-        startVideoGeneration(activeScript, blob);
+        const clips = await brollPromise;
+        startVideoGeneration(activeScript, blob, clips);
         resolveVoice(blob);
       } else {
+        const clips = await brollPromise;
         resolveVoice(null);
-        startVideoGeneration(activeScript);
+        startVideoGeneration(activeScript, undefined, clips);
       }
     } catch {
+      const clips = await brollPromise.catch(() => [] as BrollClip[]);
       resolveVoice(null);
-      startVideoGeneration(activeScript);
+      startVideoGeneration(activeScript, undefined, clips);
     }
   }
 
@@ -833,12 +891,93 @@ export default function CreateVideo() {
                 </div>
                 <div className="flex-1">
                   <h2 className="text-base font-semibold">Cinematic Render Engine</h2>
-                  <p className="text-xs text-muted-foreground">{renderLabel || "Ready to render"}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {videoGenerating ? "Compositing real footage + AI voice narration…" : renderLabel || "Ready to render"}
+                  </p>
                 </div>
-                {renderComplete && <CheckCircle className="w-5 h-5 text-emerald-400" />}
+                {renderComplete && !videoGenerating && <CheckCircle className="w-5 h-5 text-emerald-400" />}
               </div>
 
-              {renderProgress > 0 && (
+              {/* B-roll clip thumbnails */}
+              {(brollClips.length > 0 || brollLoading) && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Film className="w-3.5 h-3.5 text-primary" />
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      {brollLoading ? "Searching cinematic stock footage…" : `${brollClips.length} AI-matched footage clips`}
+                    </span>
+                    {brollLoading && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {brollLoading
+                      ? Array.from({ length: 4 }).map((_, i) => (
+                          <div key={i} className="w-14 h-20 rounded-lg bg-muted/30 border border-border animate-pulse shrink-0" />
+                        ))
+                      : brollClips.slice(0, 8).map((clip, i) => (
+                          <div key={i} className="w-14 h-20 rounded-lg overflow-hidden border border-border shrink-0 relative bg-muted/20">
+                            {clip.thumbnail ? (
+                              <img src={clip.thumbnail} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Film className="w-4 h-4 text-muted-foreground/40" />
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                            <span className="absolute bottom-1 left-0 right-0 text-center text-[8px] text-white/80 font-mono">{clip.duration}s</span>
+                          </div>
+                        ))}
+                  </div>
+                  {brollClips.length > 0 && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Real footage composited as background · voice + word-by-word text overlaid on top
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Canvas video generation progress (real) */}
+              {videoGenerating && (
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-muted-foreground">
+                      {brollClips.length > 0 ? "Compositing footage + audio…" : "Rendering cinematic scenes + audio…"}
+                    </span>
+                    <span className="text-sm font-bold font-mono text-orange-400">{videoGenProgress}%</span>
+                  </div>
+                  <ProgressBar value={videoGenProgress} color="bg-orange-500" />
+                  <div className="flex gap-2">
+                    {[
+                      { label: "Footage", done: videoGenProgress >= 15 },
+                      { label: "Color", done: videoGenProgress >= 35 },
+                      { label: "Text", done: videoGenProgress >= 55 },
+                      { label: "Voice", done: videoGenProgress >= 75 },
+                      { label: "Encode", done: videoGenProgress >= 95 },
+                    ].map(({ label, done }) => (
+                      <div key={label} className={`flex-1 text-center py-1 rounded text-[9px] font-bold transition-colors ${done ? "bg-orange-500/15 text-orange-400" : "bg-muted/30 text-muted-foreground"}`}>
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-center text-muted-foreground">
+                    Rendering {Math.round(videoGenProgress / 100 * 30 * 45)} of ~1350 frames · canvas compositor active
+                  </p>
+                </div>
+              )}
+
+              {/* Ready state after background render completes */}
+              {videoReady && !videoGenerating && (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-center">
+                  <CheckCircle className="w-6 h-6 text-emerald-400 mx-auto mb-1" />
+                  <p className="text-sm font-semibold text-emerald-400">Video Ready</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {brollClips.length > 0
+                      ? `${brollClips.length} footage clips composited · ${VIDEO_STYLES.find((v) => v.value === videoStyle)?.label}`
+                      : `${VIDEO_STYLES.find((v) => v.value === videoStyle)?.label} · animated scenes rendered`}
+                  </p>
+                </div>
+              )}
+
+              {renderProgress > 0 && !videoGenerating && (
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-muted-foreground">{renderLabel}</span>
@@ -862,8 +1001,16 @@ export default function CreateVideo() {
               )}
 
               {!renderComplete ? (
-                <Button onClick={handleRender} disabled={renderProgress > 0 && !renderComplete} className="w-full gap-2">
-                  {renderProgress > 0 ? <><Loader2 className="w-4 h-4 animate-spin" /> Rendering...</> : <><Play className="w-4 h-4" /> Start Render</>}
+                <Button
+                  onClick={handleRender}
+                  disabled={(renderProgress > 0 && !renderComplete) || videoGenerating}
+                  className="w-full gap-2"
+                >
+                  {videoGenerating
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Rendering video ({videoGenProgress}%)…</>
+                    : renderProgress > 0
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Finalizing…</>
+                    : <><Play className="w-4 h-4" /> Start Render</>}
                 </Button>
               ) : (
                 <div className="space-y-3">

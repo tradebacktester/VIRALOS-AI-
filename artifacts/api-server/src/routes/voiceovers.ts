@@ -1,17 +1,9 @@
 import { Router } from "express";
-import { openai } from "@workspace/integrations-openai-ai-server";
 import { db, voiceoverJobsTable, projectsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { GenerateVoiceoverBody } from "@workspace/api-zod";
 
 const router = Router();
-
-const VOICE_MAP: Record<string, string> = {
-  motivational_male: "onyx",
-  cinematic_female: "nova",
-  calm_authority: "alloy",
-  intense_narrator: "echo",
-};
 
 const VOICE_DURATIONS: Record<string, number> = {
   motivational_male: 45000,
@@ -21,6 +13,49 @@ const VOICE_DURATIONS: Record<string, number> = {
   calm_male: 60000,
   calm_female: 58000,
 };
+
+// ElevenLabs voice IDs mapped to our voice styles
+const ELEVENLABS_VOICE_MAP: Record<string, string> = {
+  motivational_male: "pNInz6obpgDQGcFmaJgB",   // Adam — deep, powerful
+  cinematic_female: "21m00Tcm4TlvDq8ikWAM",    // Rachel — calm, authoritative
+  calm_authority: "ErXwobaYiN019PkySvjV",       // Antoni — smooth, confident
+  intense_narrator: "VR6AewLTigWG4xSOukaG",     // Arnold — crispy, intense
+};
+
+async function synthesizeWithElevenLabs(text: string, voiceStyle: string): Promise<Buffer> {
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) throw new Error("ELEVENLABS_API_KEY not set");
+
+  const voiceId = ELEVENLABS_VOICE_MAP[voiceStyle] ?? ELEVENLABS_VOICE_MAP["motivational_male"];
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "xi-api-key": apiKey,
+      "Content-Type": "application/json",
+      "Accept": "audio/mpeg",
+    },
+    body: JSON.stringify({
+      text: text.slice(0, 5000),
+      model_id: "eleven_multilingual_v2",
+      voice_settings: {
+        stability: 0.45,
+        similarity_boost: 0.82,
+        style: 0.35,
+        use_speaker_boost: true,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.text().catch(() => response.statusText);
+    throw new Error(`ElevenLabs error ${response.status}: ${err}`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
 
 router.post("/generate", async (req, res) => {
   const parsed = GenerateVoiceoverBody.safeParse(req.body);
@@ -80,17 +115,8 @@ router.post("/synthesize", async (req, res) => {
     return;
   }
 
-  const voice = (VOICE_MAP[voiceStyle] ?? "onyx") as "onyx" | "nova" | "alloy" | "echo" | "fable" | "shimmer";
-
   try {
-    const mp3Response = await openai.audio.speech.create({
-      model: "tts-1-hd",
-      voice,
-      input: text.slice(0, 4096),
-      speed: 0.92,
-    });
-
-    const buffer = Buffer.from(await mp3Response.arrayBuffer());
+    const buffer = await synthesizeWithElevenLabs(text, voiceStyle);
 
     if (projectId) {
       try {
@@ -119,7 +145,7 @@ router.post("/synthesize", async (req, res) => {
     res.set("Cache-Control", "no-store");
     res.send(buffer);
   } catch (err) {
-    console.error("TTS synthesis error:", err);
+    console.error("ElevenLabs TTS error:", err);
     res.status(500).json({ error: "Voice synthesis failed", details: String(err) });
   }
 });
